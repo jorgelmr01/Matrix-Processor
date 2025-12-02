@@ -1,14 +1,1021 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Matrix Processor</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Matrix Processor</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    :root {
+      --bg-dark: #0f1419;
+      --bg-card: #1a1f26;
+      --bg-elevated: #242b33;
+      --bg-hover: #2d353f;
+      --border: #3d4750;
+      --text-primary: #e7eaed;
+      --text-secondary: #8b949e;
+      --text-muted: #6e7681;
+      --accent: #58a6ff;
+      --accent-hover: #79b8ff;
+      --success: #3fb950;
+      --warning: #d29922;
+      --error: #f85149;
+      --radius: 8px;
+      --radius-lg: 12px;
+    }
+    
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 32px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+    }
+    
+    .header h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .header h1::before {
+      content: '';
+      width: 32px;
+      height: 32px;
+      background: var(--accent);
+      border-radius: 8px;
+    }
+    
+    /* Progress */
+    .progress {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 32px;
+    }
+    
+    .progress .step {
+      flex: 1;
+      padding: 12px 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 500;
+      text-align: center;
+      transition: all 0.2s;
+    }
+    
+    .progress .step:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+    .progress .step:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+    .progress .step.active { background: var(--bg-elevated); color: var(--accent); border-color: var(--accent); }
+    .progress .step.completed { background: var(--bg-elevated); color: var(--success); border-color: var(--success); }
+    
+    /* Card */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+    }
+    
+    .card h2 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    
+    .subtitle {
+      color: var(--text-secondary);
+      font-size: 14px;
+      margin-bottom: 24px;
+    }
+    
+    /* Buttons */
+    .btn-group {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+      justify-content: flex-end;
+    }
+    
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: inherit;
+    }
+    
+    .btn-primary { background: var(--accent); color: var(--bg-dark); }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-secondary { background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border); }
+    .btn-secondary:hover { background: var(--bg-hover); }
+    .btn-success { background: var(--success); color: var(--bg-dark); }
+    .btn-success:hover { filter: brightness(1.1); }
+    
+    /* Drop Zone */
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 48px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: var(--bg-elevated);
+    }
+    
+    .drop-zone:hover, .drop-zone.dragging {
+      border-color: var(--accent);
+      background: var(--bg-hover);
+    }
+    
+    .drop-zone svg { color: var(--text-muted); margin-bottom: 12px; }
+    .drop-zone p { color: var(--text-secondary); font-weight: 500; }
+    .drop-zone .hint { font-size: 13px; color: var(--text-muted); margin-top: 8px; }
+    
+    /* File List */
+    .file-list { margin-top: 24px; }
+    .file-list h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .file-count {
+      background: var(--accent);
+      color: var(--bg-dark);
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+    
+    .file-item {
+      display: flex;
+      align-items: center;
+      padding: 12px 16px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 8px;
+    }
+    
+    .file-icon {
+      width: 36px;
+      height: 36px;
+      background: var(--bg-hover);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 12px;
+      font-size: 18px;
+    }
+    
+    .file-name { flex: 1; font-weight: 500; font-size: 14px; }
+    .file-size { color: var(--text-muted); font-size: 13px; margin-right: 12px; font-family: 'JetBrains Mono', monospace; }
+    
+    .remove-btn {
+      background: transparent;
+      color: var(--text-muted);
+      border: none;
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 18px;
+      transition: all 0.15s;
+    }
+    
+    .remove-btn:hover { background: var(--error); color: white; }
+    
+    /* Tabs */
+    .file-card {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    
+    .file-card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px;
+      background: var(--bg-hover);
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+      font-size: 14px;
+    }
+    
+    .tabs-grid {
+      padding: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    
+    .tab-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: all 0.15s;
+      min-width: 200px;
+    }
+    
+    .tab-item:hover { border-color: var(--text-muted); }
+    .tab-item.selected { border-color: var(--accent); background: rgba(88, 166, 255, 0.1); }
+    .tab-item input { width: 16px; height: 16px; accent-color: var(--accent); }
+    .tab-name { flex: 1; font-weight: 500; font-size: 14px; }
+    .tab-info { font-size: 12px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+    
+    /* Column Selectors */
+    .column-grid {
+      padding: 16px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    
+    @media (max-width: 800px) { .column-grid { grid-template-columns: 1fr; } }
+    
+    .selector-group label {
+      display: block;
+      font-weight: 600;
+      color: var(--text-secondary);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    
+    .selector-group label.required::after { content: ' *'; color: var(--error); }
+    
+    .selector-group select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 14px;
+      background: var(--bg-card);
+      color: var(--text-primary);
+      cursor: pointer;
+      font-family: inherit;
+    }
+    
+    .selector-group select:focus { outline: none; border-color: var(--accent); }
+    
+    /* Matrix Config */
+    .matrix-card {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+    
+    .matrix-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      background: var(--bg-hover);
+      border-bottom: 1px solid var(--border);
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    
+    .matrix-name {
+      flex: 1;
+      min-width: 200px;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 14px;
+      font-weight: 600;
+      background: var(--bg-card);
+      color: var(--text-primary);
+      font-family: inherit;
+    }
+    
+    .matrix-name:focus { outline: none; border-color: var(--accent); }
+    
+    .matrix-actions { display: flex; align-items: center; gap: 12px; }
+    
+    .merge-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      padding: 6px 12px;
+      background: var(--bg-card);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+    }
+    
+    .merge-toggle input { width: 16px; height: 16px; accent-color: var(--accent); }
+    
+    .remove-matrix-btn {
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      font-family: inherit;
+    }
+    
+    .remove-matrix-btn:hover { background: var(--error); border-color: var(--error); color: white; }
+    
+    .sources-list { padding: 16px; }
+    .sources-list h4 {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+    }
+    
+    .source-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 8px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    
+    .remove-source-btn {
+      background: transparent;
+      color: var(--text-muted);
+      border: none;
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    
+    .remove-source-btn:hover { background: var(--error); color: white; }
+    
+    .add-btn {
+      background: var(--bg-card);
+      color: var(--accent);
+      border: 1px dashed var(--border);
+      padding: 8px 16px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      width: 100%;
+      font-family: inherit;
+    }
+    
+    .add-btn:hover { border-color: var(--accent); background: rgba(88, 166, 255, 0.1); }
+    
+    .add-matrix-btn {
+      background: var(--bg-elevated);
+      color: var(--text-secondary);
+      border: 1px dashed var(--border);
+      padding: 16px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      width: 100%;
+      margin-top: 12px;
+      font-family: inherit;
+    }
+    
+    .add-matrix-btn:hover { border-color: var(--accent); color: var(--accent); }
+    
+    /* Success */
+    .success-message {
+      text-align: center;
+      padding: 40px 20px;
+    }
+    
+    .success-icon {
+      width: 64px;
+      height: 64px;
+      background: var(--success);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      font-size: 32px;
+      color: var(--bg-dark);
+    }
+    
+    .success-message h2 { color: var(--success); margin-bottom: 12px; }
+    
+    .matrices-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      margin: 24px 0;
+    }
+    
+    .matrix-preview {
+      background: var(--bg-elevated);
+      padding: 20px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+    }
+    
+    .matrix-preview h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 8px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    
+    .matrix-preview p { font-size: 13px; color: var(--text-secondary); }
+    
+    /* Loading */
+    .loading {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 20, 25, 0.9);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    
+    @keyframes spin { to { transform: rotate(360deg); } }
+    
+    .loading p { margin-top: 16px; color: var(--text-secondary); }
+    
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>Matrix Processor</h1>
+    </header>
+    
+    <div class="progress">
+      <div class="step active" data-step="1">1. Upload</div>
+      <div class="step" data-step="2">2. Tabs</div>
+      <div class="step" data-step="3">3. Columns</div>
+      <div class="step" data-step="4">4. Configure</div>
+      <div class="step" data-step="5">5. Export</div>
+    </div>
+    
+    <!-- Step 1: Upload -->
+    <div id="step1" class="card">
+      <h2>Upload Files</h2>
+      <p class="subtitle">Add Excel or CSV files to process</p>
+      
+      <div class="drop-zone" id="dropZone">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="17 8 12 3 7 8"></polyline>
+          <line x1="12" y1="3" x2="12" y2="15"></line>
+        </svg>
+        <p>Click to browse or drag files here</p>
+        <p class="hint">.xlsx, .xls, .csv</p>
+        <input type="file" id="fileInput" multiple accept=".xlsx,.xls,.csv" style="display:none">
+      </div>
+      
+      <div class="file-list hidden" id="fileList">
+        <h3>Files <span class="file-count" id="fileCount">0</span></h3>
+        <div id="fileItems"></div>
+      </div>
+      
+      <div class="btn-group">
+        <button class="btn btn-primary" id="uploadBtn" disabled>Continue →</button>
+      </div>
+    </div>
+    
+    <!-- Step 2: Tabs -->
+    <div id="step2" class="card hidden">
+      <h2>Select Tabs</h2>
+      <p class="subtitle">Choose which sheets to process from each file</p>
+      <div id="tabsContainer"></div>
+      <div class="btn-group">
+        <button class="btn btn-secondary" onclick="goToStep(1)">← Back</button>
+        <button class="btn btn-primary" id="tabsBtn" disabled>Continue →</button>
+      </div>
+    </div>
+    
+    <!-- Step 3: Columns -->
+    <div id="step3" class="card hidden">
+      <h2>Select Columns</h2>
+      <p class="subtitle">Define the axes for each matrix</p>
+      <div id="columnsContainer"></div>
+      <div class="btn-group">
+        <button class="btn btn-secondary" onclick="goToStep(2)">← Back</button>
+        <button class="btn btn-primary" id="columnsBtn" disabled>Continue →</button>
+      </div>
+    </div>
+    
+    <!-- Step 4: Configure -->
+    <div id="step4" class="card hidden">
+      <h2>Configure Matrices</h2>
+      <p class="subtitle">Organize and merge your data sources</p>
+      <div id="configContainer"></div>
+      <button class="add-matrix-btn" id="addMatrixBtn">+ Add new matrix</button>
+      <div class="btn-group">
+        <button class="btn btn-secondary" onclick="goToStep(3)">← Back</button>
+        <button class="btn btn-primary" id="computeBtn">Compute Matrices →</button>
+      </div>
+    </div>
+    
+    <!-- Step 5: Export -->
+    <div id="step5" class="card hidden">
+      <div class="success-message">
+        <div class="success-icon">✓</div>
+        <h2>Matrices Ready</h2>
+        <p class="subtitle" id="matricesCount"></p>
+      </div>
+      <div class="matrices-grid" id="matricesPreview"></div>
+      <div class="btn-group">
+        <button class="btn btn-secondary" onclick="resetApp()">Start Over</button>
+        <button class="btn btn-success" id="exportBtn">Download Excel</button>
+      </div>
+    </div>
+  </div>
+  
+  <div class="loading hidden" id="loading">
+    <div class="spinner"></div>
+    <p>Processing...</p>
+  </div>
+  
+  <script>
+    // State
+    let files = [];
+    let fileData = [];
+    let selectedTabs = {};
+    let columnSelections = {};
+    let matrixConfig = [];
+    let matrices = [];
+    let currentStep = 1;
+    
+    // DOM Elements
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const fileList = document.getElementById('fileList');
+    const fileItems = document.getElementById('fileItems');
+    const fileCount = document.getElementById('fileCount');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const tabsBtn = document.getElementById('tabsBtn');
+    const columnsBtn = document.getElementById('columnsBtn');
+    const computeBtn = document.getElementById('computeBtn');
+    const exportBtn = document.getElementById('exportBtn');
+    const addMatrixBtn = document.getElementById('addMatrixBtn');
+    const loading = document.getElementById('loading');
+    
+    // File Upload
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragging'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragging'));
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragging');
+      const droppedFiles = Array.from(e.dataTransfer.files).filter(f => 
+        f.name.endsWith('.xlsx') || f.name.endsWith('.xls') || f.name.endsWith('.csv')
+      );
+      addFiles(droppedFiles);
+    });
+    
+    fileInput.addEventListener('change', (e) => addFiles(Array.from(e.target.files)));
+    
+    function addFiles(newFiles) {
+      files = [...files, ...newFiles];
+      renderFileList();
+    }
+    
+    function removeFile(index) {
+      files.splice(index, 1);
+      renderFileList();
+    }
+    
+    function formatSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+    
+    function renderFileList() {
+      if (files.length === 0) {
+        fileList.classList.add('hidden');
+        uploadBtn.disabled = true;
+        return;
+      }
+      
+      fileList.classList.remove('hidden');
+      fileCount.textContent = files.length;
+      uploadBtn.disabled = false;
+      
+      fileItems.innerHTML = files.map((f, i) => `
+        <div class="file-item">
+          <span class="file-icon">${f.name.endsWith('.csv') ? '📊' : '📗'}</span>
+          <span class="file-name">${f.name}</span>
+          <span class="file-size">${formatSize(f.size)}</span>
+          <button class="remove-btn" onclick="removeFile(${i})">×</button>
+        </div>
+      `).join('');
+    }
+    
+    // Upload files to server
+    uploadBtn.addEventListener('click', async () => {
+      loading.classList.remove('hidden');
+      
+      const formData = new FormData();
+      files.forEach(f => formData.append('files', f));
+      
+      try {
+        const res = await fetch('/api/upload', { method: 'POST', body: formData });
+        const data = await res.json();
+        
+        if (data.error) throw new Error(data.error);
+        
+        fileData = data.files;
+        goToStep(2);
+        renderTabs();
+      } catch (err) {
+        alert('Error: ' + err.message);
+      } finally {
+        loading.classList.add('hidden');
+      }
+    });
+    
+    // Step 2: Tabs
+    function renderTabs() {
+      const container = document.getElementById('tabsContainer');
+      container.innerHTML = fileData.map((file, fileIdx) => `
+        <div class="file-card">
+          <div class="file-card-header">
+            <span>📗</span> ${file.fileName}
+          </div>
+          <div class="tabs-grid">
+            ${file.sheets.map((sheet, sheetIdx) => {
+              const key = `${fileIdx}-${sheet.name}`;
+              return `
+                <div class="tab-item ${selectedTabs[key] ? 'selected' : ''}" onclick="toggleTab('${fileIdx}', '${sheet.name}')">
+                  <input type="checkbox" ${selectedTabs[key] ? 'checked' : ''}>
+                  <span class="tab-name">${sheet.name}</span>
+                  <span class="tab-info">${sheet.data.length}×${sheet.headers.length}</span>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `).join('');
+      
+      updateTabsBtn();
+    }
+    
+    function toggleTab(fileIdx, sheetName) {
+      const key = `${fileIdx}-${sheetName}`;
+      selectedTabs[key] = !selectedTabs[key];
+      renderTabs();
+    }
+    
+    function updateTabsBtn() {
+      const count = Object.values(selectedTabs).filter(Boolean).length;
+      tabsBtn.disabled = count === 0;
+      tabsBtn.textContent = `Continue (${count} selected) →`;
+    }
+    
+    tabsBtn.addEventListener('click', () => {
+      goToStep(3);
+      renderColumns();
+    });
+    
+    // Step 3: Columns
+    function renderColumns() {
+      const container = document.getElementById('columnsContainer');
+      const items = [];
+      
+      Object.keys(selectedTabs).forEach(key => {
+        if (!selectedTabs[key]) return;
+        const [fileIdx, ...rest] = key.split('-');
+        const sheetName = rest.join('-');
+        const file = fileData[parseInt(fileIdx)];
+        const sheet = file.sheets.find(s => s.name === sheetName);
+        if (!sheet) return;
+        
+        const sel = columnSelections[key] || {};
+        
+        items.push(`
+          <div class="file-card">
+            <div class="file-card-header">
+              <span>📊</span> ${file.fileName} → ${sheetName}
+            </div>
+            <div class="column-grid">
+              <div class="selector-group">
+                <label class="required">Y Axis (Rows)</label>
+                <select onchange="setColumn('${key}', 'yAxis', this.value)">
+                  <option value="">Select column...</option>
+                  ${sheet.headers.map(h => `<option value="${h}" ${sel.yAxis === h ? 'selected' : ''}>${h}</option>`).join('')}
+                </select>
+              </div>
+              <div class="selector-group">
+                <label class="required">X Axis (Columns)</label>
+                <select onchange="setColumn('${key}', 'xAxis', this.value)">
+                  <option value="">Select column...</option>
+                  ${sheet.headers.map(h => `<option value="${h}" ${sel.xAxis === h ? 'selected' : ''}>${h}</option>`).join('')}
+                </select>
+              </div>
+              <div class="selector-group">
+                <label>Secondary X (Split by)</label>
+                <select onchange="setColumn('${key}', 'secondaryXAxis', this.value)">
+                  <option value="">None</option>
+                  ${sheet.headers.map(h => `<option value="${h}" ${sel.secondaryXAxis === h ? 'selected' : ''}>${h}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+          </div>
+        `);
+      });
+      
+      container.innerHTML = items.join('');
+      updateColumnsBtn();
+    }
+    
+    function setColumn(key, field, value) {
+      if (!columnSelections[key]) columnSelections[key] = {};
+      columnSelections[key][field] = value || null;
+      updateColumnsBtn();
+    }
+    
+    function updateColumnsBtn() {
+      let complete = true;
+      Object.keys(selectedTabs).forEach(key => {
+        if (!selectedTabs[key]) return;
+        const sel = columnSelections[key];
+        if (!sel || !sel.yAxis || !sel.xAxis) complete = false;
+      });
+      columnsBtn.disabled = !complete;
+    }
+    
+    columnsBtn.addEventListener('click', () => {
+      goToStep(4);
+      initMatrixConfig();
+      renderConfig();
+    });
+    
+    // Step 4: Configure
+    function initMatrixConfig() {
+      matrixConfig = [];
+      Object.keys(selectedTabs).forEach(key => {
+        if (!selectedTabs[key]) return;
+        const [fileIdx, ...rest] = key.split('-');
+        const sheetName = rest.join('-');
+        const file = fileData[parseInt(fileIdx)];
+        
+        matrixConfig.push({
+          name: `${file.fileName.replace(/\.[^/.]+$/, '')} - ${sheetName}`,
+          sources: [{ fileIndex: parseInt(fileIdx), sheetName, fileName: file.fileName }],
+          merge: false
+        });
+      });
+    }
+    
+    function renderConfig() {
+      const container = document.getElementById('configContainer');
+      container.innerHTML = matrixConfig.map((config, idx) => `
+        <div class="matrix-card">
+          <div class="matrix-header">
+            <input type="text" class="matrix-name" value="${config.name}" onchange="setMatrixName(${idx}, this.value)">
+            <div class="matrix-actions">
+              <label class="merge-toggle">
+                <input type="checkbox" ${config.merge ? 'checked' : ''} onchange="toggleMerge(${idx})">
+                <span>Merge sources</span>
+              </label>
+              ${matrixConfig.length > 1 ? `<button class="remove-matrix-btn" onclick="removeMatrix(${idx})">Remove</button>` : ''}
+            </div>
+          </div>
+          <div class="sources-list">
+            <h4>Data Sources</h4>
+            ${config.sources.map((s, sIdx) => `
+              <div class="source-item">
+                <span>${s.fileName} → ${s.sheetName}</span>
+                ${config.sources.length > 1 ? `<button class="remove-source-btn" onclick="removeSource(${idx}, ${sIdx})">×</button>` : ''}
+              </div>
+            `).join('')}
+            <button class="add-btn" onclick="addSource(${idx})">+ Add source</button>
+          </div>
+        </div>
+      `).join('');
+    }
+    
+    function setMatrixName(idx, name) { matrixConfig[idx].name = name; }
+    function toggleMerge(idx) { matrixConfig[idx].merge = !matrixConfig[idx].merge; renderConfig(); }
+    function removeMatrix(idx) { matrixConfig.splice(idx, 1); renderConfig(); }
+    function removeSource(matrixIdx, sourceIdx) { matrixConfig[matrixIdx].sources.splice(sourceIdx, 1); renderConfig(); }
+    
+    function addSource(matrixIdx) {
+      const current = matrixConfig[matrixIdx].sources;
+      const available = [];
+      
+      Object.keys(selectedTabs).forEach(key => {
+        if (!selectedTabs[key]) return;
+        const [fileIdx, ...rest] = key.split('-');
+        const sheetName = rest.join('-');
+        const file = fileData[parseInt(fileIdx)];
+        
+        const exists = current.some(s => s.fileIndex === parseInt(fileIdx) && s.sheetName === sheetName);
+        if (!exists) {
+          available.push({ fileIndex: parseInt(fileIdx), sheetName, fileName: file.fileName });
+        }
+      });
+      
+      if (available.length > 0) {
+        current.push(available[0]);
+        renderConfig();
+      }
+    }
+    
+    addMatrixBtn.addEventListener('click', () => {
+      const available = [];
+      Object.keys(selectedTabs).forEach(key => {
+        if (!selectedTabs[key]) return;
+        const [fileIdx, ...rest] = key.split('-');
+        const sheetName = rest.join('-');
+        const file = fileData[parseInt(fileIdx)];
+        available.push({ fileIndex: parseInt(fileIdx), sheetName, fileName: file.fileName });
+      });
+      
+      if (available.length > 0) {
+        matrixConfig.push({
+          name: `Matrix ${matrixConfig.length + 1}`,
+          sources: [available[0]],
+          merge: false
+        });
+        renderConfig();
+      }
+    });
+    
+    // Compute
+    computeBtn.addEventListener('click', async () => {
+      loading.classList.remove('hidden');
+      
+      // Convert selectedTabs to the format expected by backend
+      const tabsForBackend = {};
+      Object.keys(selectedTabs).forEach(key => {
+        if (!selectedTabs[key]) return;
+        const [fileIdx, ...rest] = key.split('-');
+        const sheetName = rest.join('-');
+        if (!tabsForBackend[fileIdx]) tabsForBackend[fileIdx] = [];
+        tabsForBackend[fileIdx].push(sheetName);
+      });
+      
+      try {
+        const res = await fetch('/api/compute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileData,
+            selectedTabs: tabsForBackend,
+            columnSelections,
+            matrixConfig
+          })
+        });
+        
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        
+        matrices = data.matrices;
+        goToStep(5);
+        renderResults();
+      } catch (err) {
+        alert('Error: ' + err.message);
+      } finally {
+        loading.classList.add('hidden');
+      }
+    });
+    
+    // Step 5: Results
+    function renderResults() {
+      document.getElementById('matricesCount').textContent = 
+        `${matrices.length} matrix${matrices.length !== 1 ? 'es' : ''} computed successfully`;
+      
+      document.getElementById('matricesPreview').innerHTML = matrices.map(m => `
+        <div class="matrix-preview">
+          <h3>${m.name}</h3>
+          <p>${m.yAxis.length} rows × ${m.xAxis.length} columns</p>
+        </div>
+      `).join('');
+    }
+    
+    // Export
+    exportBtn.addEventListener('click', async () => {
+      loading.classList.remove('hidden');
+      
+      try {
+        const res = await fetch('/api/export', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ matrices })
+        });
+        
+        if (!res.ok) throw new Error('Export failed');
+        
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = res.headers.get('Content-Disposition')?.split('filename=')[1]?.replace(/"/g, '') || 'matrices.xlsx';
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        alert('Error: ' + err.message);
+      } finally {
+        loading.classList.add('hidden');
+      }
+    });
+    
+    // Navigation
+    function goToStep(step) {
+      currentStep = step;
+      
+      document.querySelectorAll('.progress .step').forEach(el => {
+        const s = parseInt(el.dataset.step);
+        el.classList.remove('active', 'completed');
+        if (s === step) el.classList.add('active');
+        else if (s < step) el.classList.add('completed');
+      });
+      
+      for (let i = 1; i <= 5; i++) {
+        document.getElementById(`step${i}`).classList.toggle('hidden', i !== step);
+      }
+    }
+    
+    function resetApp() {
+      files = [];
+      fileData = [];
+      selectedTabs = {};
+      columnSelections = {};
+      matrixConfig = [];
+      matrices = [];
+      
+      fileItems.innerHTML = '';
+      fileList.classList.add('hidden');
+      uploadBtn.disabled = true;
+      fileInput.value = '';
+      
+      fetch('/api/reset', { method: 'POST' });
+      goToStep(1);
+    }
+  </script>
+</body>
 </html>
-
-

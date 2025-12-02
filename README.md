@@ -6,9 +6,9 @@ A web application to process Excel/CSV files and create intersection matrices.
 
 **Double-click `START.bat`** to launch the application.
 
-The first time you run it, it will automatically install dependencies (requires internet).
+**Requirements:** Python 3.6+ (usually pre-installed on most systems)
 
-**Note:** You need [Node.js](https://nodejs.org/) installed. Download the LTS version if you don't have it.
+The app will automatically install required packages (`pandas`, `openpyxl`) on first run.
 
 ---
 
@@ -34,10 +34,23 @@ The first time you run it, it will automatically install dependencies (requires 
 
 ---
 
+## Manual Start
+
+If the batch file doesn't work, open a terminal and run:
+
+```bash
+python app.py
+```
+
+---
+
 ## Troubleshooting
 
-**"Node.js is not installed"** - Download from https://nodejs.org/
+**"Python is not installed"** - Download from https://python.org/
 
-**App doesn't open** - Manually open http://localhost:5173 in your browser
+**App doesn't open in browser** - Manually open http://localhost:8080
 
-**Port in use error** - Close other instances of the app first
+**Package installation fails** - Run manually:
+```bash
+pip install pandas openpyxl
+```
