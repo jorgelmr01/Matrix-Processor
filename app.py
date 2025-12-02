@@ -39,7 +39,8 @@ from openpyxl import Workbook
 # Store uploaded files and processing state
 app_state = {
     'files': {},
-    'file_data': []
+    'file_data': [],
+    'filter_file': None
 }
 
 class MatrixProcessorHandler(SimpleHTTPRequestHandler):
@@ -88,6 +89,8 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
         
         if self.path == '/api/upload':
             self.handle_upload(content_length)
+        elif self.path == '/api/upload-filter':
+            self.handle_upload_filter(content_length)
         elif self.path == '/api/process':
             self.handle_process(content_length)
         elif self.path == '/api/compute':
@@ -97,6 +100,7 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
         elif self.path == '/api/reset':
             app_state['files'] = {}
             app_state['file_data'] = []
+            app_state['filter_file'] = None
             self.send_json({'status': 'ok'})
         else:
             self.send_json({'error': 'Not found'}, 404)
@@ -179,6 +183,42 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
         
         return file_info
     
+    def handle_upload_filter(self, content_length):
+        """Handle filter file upload"""
+        content_type = self.headers.get('Content-Type', '')
+        
+        if 'multipart/form-data' in content_type:
+            boundary = content_type.split('boundary=')[1].encode()
+            body = self.rfile.read(content_length)
+            
+            parts = body.split(b'--' + boundary)
+            
+            for part in parts:
+                if b'filename="' in part:
+                    header_end = part.find(b'\r\n\r\n')
+                    header = part[:header_end].decode('utf-8', errors='ignore')
+                    filename_start = header.find('filename="') + 10
+                    filename_end = header.find('"', filename_start)
+                    filename = header[filename_start:filename_end]
+                    
+                    file_content = part[header_end + 4:]
+                    if file_content.endswith(b'\r\n'):
+                        file_content = file_content[:-2]
+                    
+                    if filename and file_content:
+                        try:
+                            file_info = self.process_file(filename, file_content)
+                            app_state['filter_file'] = file_info
+                            self.send_json({'status': 'ok', 'file': file_info})
+                            return
+                        except Exception as e:
+                            self.send_json({'error': f'Error processing filter file: {str(e)}'}, 400)
+                            return
+            
+            self.send_json({'error': 'No file found'}, 400)
+        else:
+            self.send_json({'error': 'Invalid content type'}, 400)
+    
     def handle_process(self, content_length):
         """Return processed file data"""
         self.send_json({'files': app_state['file_data']})
@@ -188,19 +228,30 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
         body = self.rfile.read(content_length)
         config = json.loads(body.decode('utf-8'))
         
+        # Extract filter config if present
+        filter_config = config.get('filterConfig')
+        filter_values = None
+        if filter_config and filter_config.get('enabled') and filter_config.get('values'):
+            filter_values = set(filter_config['values'])
+        
         try:
             matrices = self.compute_matrices(
                 config['fileData'],
                 config['selectedTabs'],
                 config['columnSelections'],
-                config['matrixConfig']
+                config['matrixConfig'],
+                filter_values
             )
             self.send_json({'matrices': matrices})
         except Exception as e:
             self.send_json({'error': str(e)}, 400)
     
-    def compute_matrices(self, file_data, selected_tabs, column_selections, matrix_config):
-        """Compute intersection matrices"""
+    def compute_matrices(self, file_data, selected_tabs, column_selections, matrix_config, filter_values=None):
+        """Compute intersection matrices
+        
+        Args:
+            filter_values: Optional set of values to filter X axis (rows) by
+        """
         matrices = []
         
         for config in matrix_config:
@@ -238,7 +289,9 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                         if y_val:
                             y_values.add(y_val)
                         if x_val:
-                            x_values.add(x_val)
+                            # Apply filter if present - only keep x values in the filter list
+                            if filter_values is None or x_val in filter_values:
+                                x_values.add(x_val)
                         if sec_x_val:
                             secondary_x_values.add(sec_x_val)
                 
@@ -344,7 +397,9 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                         if y_val:
                             y_values.add(y_val)
                         if x_val:
-                            x_values.add(x_val)
+                            # Apply filter if present - only keep x values in the filter list
+                            if filter_values is None or x_val in filter_values:
+                                x_values.add(x_val)
                         if sec_x_val and secondary_x_values is not None:
                             secondary_x_values.add(sec_x_val)
                     

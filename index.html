@@ -24,6 +24,7 @@
       --success: #22c55e;
       --success-light: #f0fdf4;
       --warning: #f59e0b;
+      --warning-light: #fffbeb;
       --error: #ef4444;
       --radius: 8px;
       --radius-lg: 12px;
@@ -67,33 +68,34 @@
     .progress {
       display: flex;
       justify-content: center;
-      gap: 8px;
+      gap: 6px;
       margin-bottom: 32px;
+      flex-wrap: wrap;
     }
     
     .progress .step {
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 10px 16px;
+      gap: 6px;
+      padding: 8px 12px;
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: 100px;
       color: var(--text-muted);
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 500;
       transition: all 0.2s;
     }
     
     .progress .step .num {
-      width: 24px;
-      height: 24px;
+      width: 22px;
+      height: 22px;
       border-radius: 50%;
       background: var(--bg-hover);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 600;
     }
     
@@ -214,6 +216,10 @@
       background: var(--bg);
     }
     
+    .drop-zone.small {
+      padding: 32px 24px;
+    }
+    
     .drop-zone:hover, .drop-zone.dragging {
       border-color: var(--accent);
       background: var(--accent-light);
@@ -228,6 +234,12 @@
       align-items: center;
       justify-content: center;
       margin: 0 auto 16px;
+    }
+    
+    .drop-zone.small .drop-zone-icon {
+      width: 48px;
+      height: 48px;
+      margin-bottom: 12px;
     }
     
     .drop-zone-icon svg { color: var(--accent); }
@@ -505,6 +517,91 @@
     
     .add-matrix-btn:hover { border-color: var(--accent); background: var(--accent-light); }
     
+    /* Filter Section */
+    .filter-section {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+    
+    .filter-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    
+    .filter-header .icon {
+      width: 40px;
+      height: 40px;
+      background: var(--warning-light);
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+    
+    .filter-header h3 {
+      font-size: 16px;
+      font-weight: 600;
+    }
+    
+    .filter-header p {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+    
+    .filter-file-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 16px;
+    }
+    
+    .filter-file-info .icon {
+      font-size: 24px;
+    }
+    
+    .filter-file-info .info { flex: 1; }
+    .filter-file-info .name { font-weight: 600; font-size: 14px; }
+    .filter-file-info .meta { font-size: 13px; color: var(--text-secondary); }
+    
+    .filter-config {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 16px;
+    }
+    
+    @media (max-width: 600px) { .filter-config { grid-template-columns: 1fr; } }
+    
+    .filter-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: var(--success-light);
+      color: var(--success);
+      border-radius: 100px;
+      font-size: 13px;
+      font-weight: 600;
+      margin-top: 12px;
+    }
+    
+    .skip-filter-note {
+      text-align: center;
+      padding: 16px;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+    
     /* Success */
     .success-message {
       text-align: center;
@@ -598,8 +695,9 @@
       <div class="step active" data-step="1"><span class="num">1</span> Upload</div>
       <div class="step" data-step="2"><span class="num">2</span> Sheets</div>
       <div class="step" data-step="3"><span class="num">3</span> Columns</div>
-      <div class="step" data-step="4"><span class="num">4</span> Configure</div>
-      <div class="step" data-step="5"><span class="num">5</span> Export</div>
+      <div class="step" data-step="4"><span class="num">4</span> Filter</div>
+      <div class="step" data-step="5"><span class="num">5</span> Configure</div>
+      <div class="step" data-step="6"><span class="num">6</span> Export</div>
     </div>
     
     <!-- Step 1: Upload -->
@@ -662,22 +760,93 @@
       </div>
     </div>
     
-    <!-- Step 4: Configure -->
+    <!-- Step 4: Filter (NEW) -->
     <div id="step4" class="card hidden">
+      <div class="card-header">
+        <h2>Filter rows (optional)</h2>
+        <p>Load an index file to filter matrix rows — e.g., keep only active employees</p>
+      </div>
+      
+      <div class="filter-section">
+        <div class="filter-header">
+          <span class="icon">🔍</span>
+          <div>
+            <h3>Index File</h3>
+            <p>Upload a file containing a list of values to keep (e.g., active employee IDs)</p>
+          </div>
+        </div>
+        
+        <div id="filterDropZone" class="drop-zone small">
+          <div class="drop-zone-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+          </div>
+          <h3>Drop index file here or click to browse</h3>
+          <p>Excel or CSV file with a column of values to keep</p>
+          <input type="file" id="filterFileInput" accept=".xlsx,.xls,.csv" style="display:none">
+        </div>
+        
+        <div id="filterFileLoaded" class="hidden">
+          <div class="filter-file-info">
+            <span class="icon">📄</span>
+            <div class="info">
+              <div class="name" id="filterFileName"></div>
+              <div class="meta" id="filterFileMeta"></div>
+            </div>
+            <button class="remove-btn" onclick="removeFilterFile()" title="Remove">×</button>
+          </div>
+          
+          <div class="filter-config">
+            <div class="form-group">
+              <label>Sheet</label>
+              <select id="filterSheetSelect" onchange="updateFilterColumns()"></select>
+            </div>
+            <div class="form-group">
+              <label>Column with values to keep</label>
+              <select id="filterColumnSelect" onchange="updateFilterPreview()"></select>
+            </div>
+          </div>
+          
+          <div class="filter-badge" id="filterPreview">
+            <span>✓</span> <span id="filterValueCount">0</span> unique values will be used as filter
+          </div>
+        </div>
+        
+        <p class="skip-filter-note">You can skip this step if you don't need to filter rows</p>
+      </div>
+      
+      <div class="btn-group">
+        <button class="btn btn-secondary" onclick="goToStep(3)">← Back</button>
+        <button class="btn btn-primary" id="filterBtn">Continue →</button>
+      </div>
+    </div>
+    
+    <!-- Step 5: Configure -->
+    <div id="step5" class="card hidden">
       <div class="card-header">
         <h2>Configure your matrices</h2>
         <p>Create matrices and select which data sources to include in each</p>
       </div>
+      <div id="filterActiveNotice" class="hidden" style="background: var(--warning-light); border: 1px solid var(--warning); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 20px;">🔍</span>
+        <div>
+          <strong style="color: var(--warning);">Row filter active</strong>
+          <p style="font-size: 13px; color: var(--text-secondary); margin: 0;">Only rows matching the index file will be included in the matrices.</p>
+        </div>
+      </div>
       <div id="configContainer"></div>
       <button class="add-matrix-btn" id="addMatrixBtn">+ Add another matrix</button>
       <div class="btn-group">
-        <button class="btn btn-secondary" onclick="goToStep(3)">← Back</button>
+        <button class="btn btn-secondary" onclick="goToStep(4)">← Back</button>
         <button class="btn btn-primary" id="computeBtn">Generate Matrices →</button>
       </div>
     </div>
     
-    <!-- Step 5: Export -->
-    <div id="step5" class="card hidden">
+    <!-- Step 6: Export -->
+    <div id="step6" class="card hidden">
       <div class="success-message">
         <div class="success-icon">✓</div>
         <h2>Matrices ready!</h2>
@@ -705,9 +874,17 @@
     let matrixConfig = [];
     let matrices = [];
     let currentStep = 1;
-    
-    // All available sources (computed after column selection)
     let availableSources = [];
+    
+    // Filter state
+    let filterFile = null;
+    let filterFileData = null;
+    let filterConfig = {
+      enabled: false,
+      sheet: null,
+      column: null,
+      values: []
+    };
     
     // DOM Elements
     const dropZone = document.getElementById('dropZone');
@@ -718,10 +895,18 @@
     const uploadBtn = document.getElementById('uploadBtn');
     const tabsBtn = document.getElementById('tabsBtn');
     const columnsBtn = document.getElementById('columnsBtn');
+    const filterBtn = document.getElementById('filterBtn');
     const computeBtn = document.getElementById('computeBtn');
     const exportBtn = document.getElementById('exportBtn');
     const addMatrixBtn = document.getElementById('addMatrixBtn');
     const loading = document.getElementById('loading');
+    
+    // Filter DOM
+    const filterDropZone = document.getElementById('filterDropZone');
+    const filterFileInput = document.getElementById('filterFileInput');
+    const filterFileLoaded = document.getElementById('filterFileLoaded');
+    const filterSheetSelect = document.getElementById('filterSheetSelect');
+    const filterColumnSelect = document.getElementById('filterColumnSelect');
     
     // File Upload
     dropZone.addEventListener('click', () => fileInput.click());
@@ -846,7 +1031,7 @@
       renderColumns();
     });
     
-    // Step 3: Columns (FIXED: X = Rows, Y = Columns)
+    // Step 3: Columns
     function renderColumns() {
       const container = document.getElementById('columnsContainer');
       const items = [];
@@ -918,12 +1103,126 @@
     
     columnsBtn.addEventListener('click', () => {
       goToStep(4);
+    });
+    
+    // Step 4: Filter
+    filterDropZone.addEventListener('click', () => filterFileInput.click());
+    filterDropZone.addEventListener('dragover', (e) => { e.preventDefault(); filterDropZone.classList.add('dragging'); });
+    filterDropZone.addEventListener('dragleave', () => filterDropZone.classList.remove('dragging'));
+    filterDropZone.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      filterDropZone.classList.remove('dragging');
+      const droppedFiles = Array.from(e.dataTransfer.files).filter(f => 
+        f.name.endsWith('.xlsx') || f.name.endsWith('.xls') || f.name.endsWith('.csv')
+      );
+      if (droppedFiles.length > 0) {
+        await loadFilterFile(droppedFiles[0]);
+      }
+    });
+    
+    filterFileInput.addEventListener('change', async (e) => {
+      if (e.target.files.length > 0) {
+        await loadFilterFile(e.target.files[0]);
+      }
+    });
+    
+    async function loadFilterFile(file) {
+      loading.classList.remove('hidden');
+      filterFile = file;
+      
+      const formData = new FormData();
+      formData.append('files', file);
+      
+      try {
+        const res = await fetch('/api/upload-filter', { method: 'POST', body: formData });
+        const data = await res.json();
+        
+        if (data.error) throw new Error(data.error);
+        
+        filterFileData = data.file;
+        
+        // Show loaded file UI
+        filterDropZone.classList.add('hidden');
+        filterFileLoaded.classList.remove('hidden');
+        
+        document.getElementById('filterFileName').textContent = file.name;
+        document.getElementById('filterFileMeta').textContent = `${filterFileData.sheets.length} sheet(s)`;
+        
+        // Populate sheet dropdown
+        filterSheetSelect.innerHTML = filterFileData.sheets.map((s, i) => 
+          `<option value="${i}">${s.name} (${s.data.length} rows)</option>`
+        ).join('');
+        
+        updateFilterColumns();
+      } catch (err) {
+        alert('Error loading filter file: ' + err.message);
+        filterFile = null;
+        filterFileData = null;
+      } finally {
+        loading.classList.add('hidden');
+      }
+    }
+    
+    function updateFilterColumns() {
+      const sheetIdx = parseInt(filterSheetSelect.value);
+      const sheet = filterFileData.sheets[sheetIdx];
+      
+      filterColumnSelect.innerHTML = sheet.headers.map(h => 
+        `<option value="${h}">${h}</option>`
+      ).join('');
+      
+      filterConfig.sheet = sheetIdx;
+      updateFilterPreview();
+    }
+    
+    function updateFilterPreview() {
+      const sheetIdx = parseInt(filterSheetSelect.value);
+      const column = filterColumnSelect.value;
+      const sheet = filterFileData.sheets[sheetIdx];
+      
+      // Get unique values from the column
+      const values = new Set();
+      sheet.data.forEach(row => {
+        const val = String(row[column] || '').trim();
+        if (val) values.add(val);
+      });
+      
+      filterConfig.sheet = sheetIdx;
+      filterConfig.column = column;
+      filterConfig.values = Array.from(values);
+      filterConfig.enabled = true;
+      
+      document.getElementById('filterValueCount').textContent = values.size;
+      document.getElementById('filterPreview').classList.remove('hidden');
+    }
+    
+    function removeFilterFile() {
+      filterFile = null;
+      filterFileData = null;
+      filterConfig = { enabled: false, sheet: null, column: null, values: [] };
+      
+      filterDropZone.classList.remove('hidden');
+      filterFileLoaded.classList.add('hidden');
+      filterFileInput.value = '';
+    }
+    
+    filterBtn.addEventListener('click', () => {
+      goToStep(5);
       buildAvailableSources();
       initMatrixConfig();
       renderConfig();
+      
+      // Show/hide filter notice
+      const notice = document.getElementById('filterActiveNotice');
+      if (filterConfig.enabled && filterConfig.values.length > 0) {
+        notice.classList.remove('hidden');
+        notice.style.display = 'flex';
+      } else {
+        notice.classList.add('hidden');
+      }
     });
     
-    // Step 4: Configure
+    // Step 5: Configure
     function buildAvailableSources() {
       availableSources = [];
       Object.keys(selectedTabs).forEach(key => {
@@ -943,7 +1242,6 @@
     
     function initMatrixConfig() {
       matrixConfig = [];
-      // Create one matrix per source by default
       availableSources.forEach(source => {
         matrixConfig.push({
           name: `${source.fileName.replace(/\.[^/.]+$/, '')} - ${source.sheetName}`,
@@ -994,7 +1292,6 @@
       const config = matrixConfig[matrixIdx];
       const idx = config.sourceKeys.indexOf(sourceKey);
       if (idx >= 0) {
-        // Don't allow removing the last source
         if (config.sourceKeys.length > 1) {
           config.sourceKeys.splice(idx, 1);
         }
@@ -1021,7 +1318,6 @@
     
     // Compute
     computeBtn.addEventListener('click', async () => {
-      // Validate
       const invalid = matrixConfig.some(c => c.sourceKeys.length === 0);
       if (invalid) {
         alert('Each matrix must have at least one data source selected.');
@@ -1030,7 +1326,6 @@
       
       loading.classList.remove('hidden');
       
-      // Convert to backend format
       const tabsForBackend = {};
       Object.keys(selectedTabs).forEach(key => {
         if (!selectedTabs[key]) return;
@@ -1040,7 +1335,6 @@
         tabsForBackend[fileIdx].push(sheetName);
       });
       
-      // Convert matrixConfig to backend format
       const configForBackend = matrixConfig.map(config => {
         const sources = config.sourceKeys.map(key => {
           const source = availableSources.find(s => s.key === key);
@@ -1065,7 +1359,8 @@
             fileData,
             selectedTabs: tabsForBackend,
             columnSelections,
-            matrixConfig: configForBackend
+            matrixConfig: configForBackend,
+            filterConfig: filterConfig.enabled ? filterConfig : null
           })
         });
         
@@ -1073,7 +1368,7 @@
         if (data.error) throw new Error(data.error);
         
         matrices = data.matrices;
-        goToStep(5);
+        goToStep(6);
         renderResults();
       } catch (err) {
         alert('Error: ' + err.message);
@@ -1082,7 +1377,7 @@
       }
     });
     
-    // Step 5: Results
+    // Step 6: Results
     function renderResults() {
       document.getElementById('matricesCount').textContent = 
         `${matrices.length} matrix${matrices.length !== 1 ? 'es' : ''} generated successfully`;
@@ -1133,7 +1428,7 @@
         else if (s < step) el.classList.add('completed');
       });
       
-      for (let i = 1; i <= 5; i++) {
+      for (let i = 1; i <= 6; i++) {
         document.getElementById(`step${i}`).classList.toggle('hidden', i !== step);
       }
     }
@@ -1146,11 +1441,19 @@
       matrixConfig = [];
       matrices = [];
       availableSources = [];
+      filterFile = null;
+      filterFileData = null;
+      filterConfig = { enabled: false, sheet: null, column: null, values: [] };
       
       fileItems.innerHTML = '';
       fileList.classList.add('hidden');
       uploadBtn.disabled = true;
       fileInput.value = '';
+      
+      // Reset filter UI
+      filterDropZone.classList.remove('hidden');
+      filterFileLoaded.classList.add('hidden');
+      filterFileInput.value = '';
       
       fetch('/api/reset', { method: 'POST' });
       goToStep(1);
