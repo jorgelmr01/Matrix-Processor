@@ -249,209 +249,122 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
     def compute_matrices(self, file_data, selected_tabs, column_selections, matrix_config, filter_values=None):
         """Compute intersection matrices
         
-        Args:
-            filter_values: Optional set of values to filter X axis (rows) by
+        New column_selections format:
+            { key: { rowColumns: [...], colColumn: '...' } }
+        
+        - rowColumns: array of column names that combine to form row labels
+        - colColumn: single column name for column values
+        - filter_values: Optional set of values to filter rows by
+        
+        Output matrix:
+        - rows: row labels (from rowColumns, combined)
+        - cols: column headers (from colColumn)
+        - data: 2D array [row_idx][col_idx] with 1s at intersections
         """
         matrices = []
         
+        def get_row_value(row_data, row_columns):
+            """Combine multiple columns into a single row label"""
+            parts = []
+            for col in row_columns:
+                val = str(row_data.get(col, '')).strip()
+                if val:
+                    parts.append(val)
+            return ' | '.join(parts) if parts else ''
+        
+        def get_first_row_value(row_data, row_columns):
+            """Get the first column value for filtering purposes"""
+            if row_columns:
+                return str(row_data.get(row_columns[0], '')).strip()
+            return ''
+        
         for config in matrix_config:
-            if config.get('merge'):
-                # Merge all sources into one matrix
-                y_values = set()
-                x_values = set()
-                secondary_x_values = set()
-                has_secondary_x = any(
-                    column_selections.get(f"{s['fileIndex']}-{s['sheetName']}", {}).get('secondaryXAxis')
-                    for s in config['sources']
-                )
+            # Collect all unique row and column values from all sources
+            row_values = set()
+            col_values = set()
+            
+            for source in config['sources']:
+                file_idx = source['fileIndex']
+                sheet_name = source['sheetName']
+                key = f"{file_idx}-{sheet_name}"
                 
-                # Collect unique values
-                for source in config['sources']:
-                    file_idx = source['fileIndex']
-                    sheet_name = source['sheetName']
-                    key = f"{file_idx}-{sheet_name}"
-                    
-                    file = file_data[file_idx]
-                    sheet = next((s for s in file['sheets'] if s['name'] == sheet_name), None)
-                    if not sheet:
-                        continue
-                    
-                    sel = column_selections.get(key, {})
-                    y_col = sel.get('yAxis')
-                    x_col = sel.get('xAxis')
-                    sec_x_col = sel.get('secondaryXAxis')
-                    
-                    for row in sheet['data']:
-                        y_val = str(row.get(y_col, '')).strip()
-                        x_val = str(row.get(x_col, '')).strip()
-                        sec_x_val = str(row.get(sec_x_col, '')).strip() if sec_x_col else None
-                        
-                        if y_val:
-                            y_values.add(y_val)
-                        if x_val:
-                            # Apply filter if present - only keep x values in the filter list
-                            if filter_values is None or x_val in filter_values:
-                                x_values.add(x_val)
-                        if sec_x_val:
-                            secondary_x_values.add(sec_x_val)
+                file = file_data[file_idx]
+                sheet = next((s for s in file['sheets'] if s['name'] == sheet_name), None)
+                if not sheet:
+                    continue
                 
-                sorted_y = sorted(y_values)
-                sorted_x = sorted(x_values)
-                sorted_sec_x = sorted(secondary_x_values) if has_secondary_x else None
+                sel = column_selections.get(key, {})
+                row_columns = sel.get('rowColumns', [])
+                col_column = sel.get('colColumn')
                 
-                if sorted_sec_x:
-                    for sec_x in sorted_sec_x:
-                        matrix_data = [[0] * len(sorted_x) for _ in range(len(sorted_y))]
-                        
-                        for source in config['sources']:
-                            file_idx = source['fileIndex']
-                            sheet_name = source['sheetName']
-                            key = f"{file_idx}-{sheet_name}"
-                            
-                            file = file_data[file_idx]
-                            sheet = next((s for s in file['sheets'] if s['name'] == sheet_name), None)
-                            if not sheet:
-                                continue
-                            
-                            sel = column_selections.get(key, {})
-                            y_col = sel.get('yAxis')
-                            x_col = sel.get('xAxis')
-                            sec_x_col = sel.get('secondaryXAxis')
-                            
-                            for row in sheet['data']:
-                                y_val = str(row.get(y_col, '')).strip()
-                                x_val = str(row.get(x_col, '')).strip()
-                                sec_x_val = str(row.get(sec_x_col, '')).strip() if sec_x_col else None
-                                
-                                if y_val and x_val and sec_x_val == sec_x:
-                                    y_idx = sorted_y.index(y_val) if y_val in sorted_y else -1
-                                    x_idx = sorted_x.index(x_val) if x_val in sorted_x else -1
-                                    if y_idx >= 0 and x_idx >= 0:
-                                        matrix_data[y_idx][x_idx] = 1
-                        
-                        matrices.append({
-                            'name': f"{config['name']} - {sec_x}",
-                            'yAxis': sorted_y,
-                            'xAxis': sorted_x,
-                            'data': matrix_data
-                        })
-                else:
-                    matrix_data = [[0] * len(sorted_x) for _ in range(len(sorted_y))]
+                if not row_columns or not col_column:
+                    continue
+                
+                for row in sheet['data']:
+                    row_val = get_row_value(row, row_columns)
+                    first_row_val = get_first_row_value(row, row_columns)
+                    col_val = str(row.get(col_column, '')).strip()
                     
-                    for source in config['sources']:
-                        file_idx = source['fileIndex']
-                        sheet_name = source['sheetName']
-                        key = f"{file_idx}-{sheet_name}"
-                        
-                        file = file_data[file_idx]
-                        sheet = next((s for s in file['sheets'] if s['name'] == sheet_name), None)
-                        if not sheet:
-                            continue
-                        
-                        sel = column_selections.get(key, {})
-                        y_col = sel.get('yAxis')
-                        x_col = sel.get('xAxis')
-                        
-                        for row in sheet['data']:
-                            y_val = str(row.get(y_col, '')).strip()
-                            x_val = str(row.get(x_col, '')).strip()
-                            
-                            if y_val and x_val:
-                                y_idx = sorted_y.index(y_val) if y_val in sorted_y else -1
-                                x_idx = sorted_x.index(x_val) if x_val in sorted_x else -1
-                                if y_idx >= 0 and x_idx >= 0:
-                                    matrix_data[y_idx][x_idx] = 1
+                    if row_val:
+                        # Apply filter based on first row column value (e.g., employee ID)
+                        if filter_values is None or first_row_val in filter_values:
+                            row_values.add(row_val)
+                    if col_val:
+                        col_values.add(col_val)
+            
+            sorted_rows = sorted(row_values)
+            sorted_cols = sorted(col_values)
+            
+            if not sorted_rows or not sorted_cols:
+                continue
+            
+            # Create matrix data
+            matrix_data = [[0] * len(sorted_cols) for _ in range(len(sorted_rows))]
+            
+            # Mark intersections
+            for source in config['sources']:
+                file_idx = source['fileIndex']
+                sheet_name = source['sheetName']
+                key = f"{file_idx}-{sheet_name}"
+                
+                file = file_data[file_idx]
+                sheet = next((s for s in file['sheets'] if s['name'] == sheet_name), None)
+                if not sheet:
+                    continue
+                
+                sel = column_selections.get(key, {})
+                row_columns = sel.get('rowColumns', [])
+                col_column = sel.get('colColumn')
+                
+                if not row_columns or not col_column:
+                    continue
+                
+                for row in sheet['data']:
+                    row_val = get_row_value(row, row_columns)
+                    col_val = str(row.get(col_column, '')).strip()
                     
-                    matrices.append({
-                        'name': config['name'],
-                        'yAxis': sorted_y,
-                        'xAxis': sorted_x,
-                        'data': matrix_data
-                    })
-            else:
-                # Create independent matrix for each source
-                for source in config['sources']:
-                    file_idx = source['fileIndex']
-                    sheet_name = source['sheetName']
-                    key = f"{file_idx}-{sheet_name}"
-                    
-                    file = file_data[file_idx]
-                    sheet = next((s for s in file['sheets'] if s['name'] == sheet_name), None)
-                    if not sheet:
-                        continue
-                    
-                    sel = column_selections.get(key, {})
-                    y_col = sel.get('yAxis')
-                    x_col = sel.get('xAxis')
-                    sec_x_col = sel.get('secondaryXAxis')
-                    
-                    y_values = set()
-                    x_values = set()
-                    secondary_x_values = set() if sec_x_col else None
-                    
-                    for row in sheet['data']:
-                        y_val = str(row.get(y_col, '')).strip()
-                        x_val = str(row.get(x_col, '')).strip()
-                        sec_x_val = str(row.get(sec_x_col, '')).strip() if sec_x_col else None
-                        
-                        if y_val:
-                            y_values.add(y_val)
-                        if x_val:
-                            # Apply filter if present - only keep x values in the filter list
-                            if filter_values is None or x_val in filter_values:
-                                x_values.add(x_val)
-                        if sec_x_val and secondary_x_values is not None:
-                            secondary_x_values.add(sec_x_val)
-                    
-                    sorted_y = sorted(y_values)
-                    sorted_x = sorted(x_values)
-                    sorted_sec_x = sorted(secondary_x_values) if secondary_x_values else None
-                    
-                    if sorted_sec_x:
-                        for sec_x in sorted_sec_x:
-                            matrix_data = [[0] * len(sorted_x) for _ in range(len(sorted_y))]
-                            
-                            for row in sheet['data']:
-                                y_val = str(row.get(y_col, '')).strip()
-                                x_val = str(row.get(x_col, '')).strip()
-                                sec_x_val = str(row.get(sec_x_col, '')).strip() if sec_x_col else None
-                                
-                                if y_val and x_val and sec_x_val == sec_x:
-                                    y_idx = sorted_y.index(y_val) if y_val in sorted_y else -1
-                                    x_idx = sorted_x.index(x_val) if x_val in sorted_x else -1
-                                    if y_idx >= 0 and x_idx >= 0:
-                                        matrix_data[y_idx][x_idx] = 1
-                            
-                            matrices.append({
-                                'name': f"{source['fileName'].rsplit('.', 1)[0]} - {sheet_name} - {sec_x}",
-                                'yAxis': sorted_y,
-                                'xAxis': sorted_x,
-                                'data': matrix_data
-                            })
-                    else:
-                        matrix_data = [[0] * len(sorted_x) for _ in range(len(sorted_y))]
-                        
-                        for row in sheet['data']:
-                            y_val = str(row.get(y_col, '')).strip()
-                            x_val = str(row.get(x_col, '')).strip()
-                            
-                            if y_val and x_val:
-                                y_idx = sorted_y.index(y_val) if y_val in sorted_y else -1
-                                x_idx = sorted_x.index(x_val) if x_val in sorted_x else -1
-                                if y_idx >= 0 and x_idx >= 0:
-                                    matrix_data[y_idx][x_idx] = 1
-                        
-                        matrices.append({
-                            'name': f"{source['fileName'].rsplit('.', 1)[0]} - {sheet_name}",
-                            'yAxis': sorted_y,
-                            'xAxis': sorted_x,
-                            'data': matrix_data
-                        })
+                    if row_val and col_val and row_val in sorted_rows and col_val in sorted_cols:
+                        row_idx = sorted_rows.index(row_val)
+                        col_idx = sorted_cols.index(col_val)
+                        matrix_data[row_idx][col_idx] = 1
+            
+            matrices.append({
+                'name': config['name'],
+                'rows': sorted_rows,
+                'cols': sorted_cols,
+                'data': matrix_data
+            })
         
         return matrices
     
     def handle_export(self, content_length):
-        """Export matrices to Excel"""
+        """Export matrices to Excel
+        
+        Matrix format:
+        - rows: row labels (appear as first column, going down)
+        - cols: column headers (appear as first row, going across)
+        - data: 2D array [row_idx][col_idx]
+        """
         body = self.rfile.read(content_length)
         data = json.loads(body.decode('utf-8'))
         matrices = data.get('matrices', [])
@@ -468,16 +381,21 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                 
                 ws = wb.create_sheet(title=sheet_name)
                 
-                # Header row
-                ws.cell(row=1, column=1, value='')
-                for col_idx, x_val in enumerate(matrix['xAxis'], start=2):
-                    ws.cell(row=1, column=col_idx, value=x_val)
+                rows = matrix.get('rows', [])
+                cols = matrix.get('cols', [])
+                matrix_data = matrix.get('data', [])
                 
-                # Data rows
-                for row_idx, y_val in enumerate(matrix['yAxis'], start=2):
-                    ws.cell(row=row_idx, column=1, value=y_val)
-                    for col_idx, val in enumerate(matrix['data'][row_idx - 2], start=2):
-                        ws.cell(row=row_idx, column=col_idx, value=val)
+                # Header row: empty cell + column headers
+                ws.cell(row=1, column=1, value='')
+                for col_idx, col_val in enumerate(cols, start=2):
+                    ws.cell(row=1, column=col_idx, value=col_val)
+                
+                # Data rows: row label + values
+                for row_idx, row_val in enumerate(rows, start=2):
+                    ws.cell(row=row_idx, column=1, value=row_val)
+                    if row_idx - 2 < len(matrix_data):
+                        for col_idx, val in enumerate(matrix_data[row_idx - 2], start=2):
+                            ws.cell(row=row_idx, column=col_idx, value=val)
             
             # Save to bytes
             output = BytesIO()

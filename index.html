@@ -46,7 +46,6 @@
       padding: 32px 24px;
     }
     
-    /* Header */
     .header {
       text-align: center;
       margin-bottom: 32px;
@@ -64,7 +63,6 @@
       font-size: 15px;
     }
     
-    /* Progress */
     .progress {
       display: flex;
       justify-content: center;
@@ -121,7 +119,6 @@
       color: white;
     }
     
-    /* Card */
     .card {
       background: var(--bg-card);
       border: 1px solid var(--border);
@@ -145,7 +142,6 @@
       font-size: 14px;
     }
     
-    /* Buttons */
     .btn-group {
       display: flex;
       gap: 12px;
@@ -205,7 +201,6 @@
       box-shadow: var(--shadow-lg);
     }
     
-    /* Drop Zone */
     .drop-zone {
       border: 2px dashed var(--border);
       border-radius: var(--radius-lg);
@@ -245,9 +240,7 @@
     .drop-zone-icon svg { color: var(--accent); }
     .drop-zone h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
     .drop-zone p { color: var(--text-secondary); font-size: 14px; }
-    .drop-zone .hint { font-size: 13px; color: var(--text-muted); margin-top: 8px; }
     
-    /* File List */
     .file-list { margin-top: 24px; }
     .file-list-header {
       display: flex;
@@ -319,7 +312,6 @@
     
     .remove-btn:hover { background: #fef2f2; color: var(--error); }
     
-    /* Section Card */
     .section-card {
       background: var(--bg);
       border: 1px solid var(--border);
@@ -352,7 +344,6 @@
     
     .section-body { padding: 16px; }
     
-    /* Tabs Grid */
     .tabs-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -377,28 +368,51 @@
     .tab-name { flex: 1; font-weight: 500; font-size: 14px; }
     .tab-info { font-size: 12px; color: var(--text-muted); background: var(--bg); padding: 2px 8px; border-radius: 4px; }
     
-    /* Column Selectors */
-    .column-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
+    /* Column Selection */
+    .axis-section {
+      margin-bottom: 20px;
     }
     
-    @media (max-width: 700px) { .column-grid { grid-template-columns: 1fr; } }
+    .axis-section:last-child {
+      margin-bottom: 0;
+    }
     
-    .form-group { display: flex; flex-direction: column; gap: 6px; }
-    
-    .form-group label {
+    .axis-label {
       font-weight: 600;
-      color: var(--text);
       font-size: 13px;
+      color: var(--text);
+      margin-bottom: 10px;
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 6px;
     }
     
-    .form-group label .required { color: var(--error); }
-    .form-group label .optional { color: var(--text-muted); font-weight: 400; font-size: 12px; }
+    .axis-label .required { color: var(--error); }
+    .axis-label .hint { font-weight: 400; color: var(--text-muted); font-size: 12px; }
+    
+    .column-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    
+    .column-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 12px;
+      background: var(--bg-card);
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: all 0.15s;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    
+    .column-chip:hover { border-color: var(--text-muted); }
+    .column-chip.selected { border-color: var(--accent); background: var(--accent-light); color: var(--accent); }
+    .column-chip input { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
     
     .form-group select {
       padding: 10px 12px;
@@ -410,6 +424,7 @@
       cursor: pointer;
       font-family: inherit;
       transition: all 0.15s;
+      min-width: 200px;
     }
     
     .form-group select:hover { border-color: var(--text-muted); }
@@ -465,10 +480,6 @@
     
     .matrix-body { padding: 16px; }
     
-    .source-selector {
-      margin-bottom: 16px;
-    }
-    
     .source-selector label {
       display: block;
       font-weight: 600;
@@ -517,7 +528,7 @@
     
     .add-matrix-btn:hover { border-color: var(--accent); background: var(--accent-light); }
     
-    /* Filter Section */
+    /* Filter */
     .filter-section {
       background: var(--bg);
       border: 1px solid var(--border);
@@ -565,10 +576,7 @@
       margin-bottom: 16px;
     }
     
-    .filter-file-info .icon {
-      font-size: 24px;
-    }
-    
+    .filter-file-info .icon { font-size: 24px; }
     .filter-file-info .info { flex: 1; }
     .filter-file-info .name { font-weight: 600; font-size: 14px; }
     .filter-file-info .meta { font-size: 13px; color: var(--text-secondary); }
@@ -581,6 +589,17 @@
     }
     
     @media (max-width: 600px) { .filter-config { grid-template-columns: 1fr; } }
+    
+    .filter-config .form-group label {
+      display: block;
+      font-weight: 600;
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+    
+    .filter-config .form-group select {
+      width: 100%;
+    }
     
     .filter-badge {
       display: inline-flex;
@@ -649,7 +668,6 @@
     
     .matrix-preview p { font-size: 13px; color: var(--text-secondary); }
     
-    /* Loading */
     .loading {
       position: fixed;
       inset: 0;
@@ -676,7 +694,6 @@
     
     .hidden { display: none !important; }
     
-    /* Empty state */
     .empty-state {
       text-align: center;
       padding: 32px;
@@ -750,8 +767,8 @@
     <!-- Step 3: Columns -->
     <div id="step3" class="card hidden">
       <div class="card-header">
-        <h2>Define matrix axes</h2>
-        <p>Select which columns to use for rows (X) and columns (Y) in each matrix</p>
+        <h2>Define matrix structure</h2>
+        <p>Select which columns become rows and which become columns in the output matrix</p>
       </div>
       <div id="columnsContainer"></div>
       <div class="btn-group">
@@ -760,7 +777,7 @@
       </div>
     </div>
     
-    <!-- Step 4: Filter (NEW) -->
+    <!-- Step 4: Filter -->
     <div id="step4" class="card hidden">
       <div class="card-header">
         <h2>Filter rows (optional)</h2>
@@ -870,7 +887,7 @@
     let files = [];
     let fileData = [];
     let selectedTabs = {};
-    let columnSelections = {};
+    let columnSelections = {}; // { key: { rowColumns: [...], colColumn: '...' } }
     let matrixConfig = [];
     let matrices = [];
     let currentStep = 1;
@@ -1031,7 +1048,7 @@
       renderColumns();
     });
     
-    // Step 3: Columns
+    // Step 3: Columns - FIXED labels and multi-select for rows
     function renderColumns() {
       const container = document.getElementById('columnsContainer');
       const items = [];
@@ -1044,7 +1061,11 @@
         const sheet = file.sheets.find(s => s.name === sheetName);
         if (!sheet) return;
         
-        const sel = columnSelections[key] || {};
+        // Initialize selection if not exists
+        if (!columnSelections[key]) {
+          columnSelections[key] = { rowColumns: [], colColumn: null };
+        }
+        const sel = columnSelections[key];
         
         items.push(`
           <div class="section-card">
@@ -1053,26 +1074,33 @@
               <span>${file.fileName} → ${sheetName}</span>
             </div>
             <div class="section-body">
-              <div class="column-grid">
-                <div class="form-group">
-                  <label>X Axis (Rows) <span class="required">*</span></label>
-                  <select onchange="setColumn('${key}', 'xAxis', this.value)">
-                    <option value="">Select column...</option>
-                    ${sheet.headers.map(h => `<option value="${h}" ${sel.xAxis === h ? 'selected' : ''}>${h}</option>`).join('')}
-                  </select>
+              <div class="axis-section">
+                <div class="axis-label">
+                  Rows <span class="required">*</span>
+                  <span class="hint">— select one or more columns (values become row labels)</span>
+                </div>
+                <div class="column-chips">
+                  ${sheet.headers.map(h => {
+                    const isSelected = sel.rowColumns && sel.rowColumns.includes(h);
+                    return `
+                      <label class="column-chip ${isSelected ? 'selected' : ''}" onclick="toggleRowColumn('${key}', '${h.replace(/'/g, "\\'")}')">
+                        <input type="checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation()">
+                        <span>${h}</span>
+                      </label>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+              
+              <div class="axis-section">
+                <div class="axis-label">
+                  Columns <span class="required">*</span>
+                  <span class="hint">— values become column headers</span>
                 </div>
                 <div class="form-group">
-                  <label>Y Axis (Columns) <span class="required">*</span></label>
-                  <select onchange="setColumn('${key}', 'yAxis', this.value)">
+                  <select onchange="setColColumn('${key}', this.value)">
                     <option value="">Select column...</option>
-                    ${sheet.headers.map(h => `<option value="${h}" ${sel.yAxis === h ? 'selected' : ''}>${h}</option>`).join('')}
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label>Split by <span class="optional">(optional)</span></label>
-                  <select onchange="setColumn('${key}', 'secondaryXAxis', this.value)">
-                    <option value="">None - single matrix</option>
-                    ${sheet.headers.map(h => `<option value="${h}" ${sel.secondaryXAxis === h ? 'selected' : ''}>${h}</option>`).join('')}
+                    ${sheet.headers.map(h => `<option value="${h}" ${sel.colColumn === h ? 'selected' : ''}>${h}</option>`).join('')}
                   </select>
                 </div>
               </div>
@@ -1085,9 +1113,25 @@
       updateColumnsBtn();
     }
     
-    function setColumn(key, field, value) {
-      if (!columnSelections[key]) columnSelections[key] = {};
-      columnSelections[key][field] = value || null;
+    function toggleRowColumn(key, column) {
+      if (!columnSelections[key]) {
+        columnSelections[key] = { rowColumns: [], colColumn: null };
+      }
+      const sel = columnSelections[key];
+      const idx = sel.rowColumns.indexOf(column);
+      if (idx >= 0) {
+        sel.rowColumns.splice(idx, 1);
+      } else {
+        sel.rowColumns.push(column);
+      }
+      renderColumns();
+    }
+    
+    function setColColumn(key, value) {
+      if (!columnSelections[key]) {
+        columnSelections[key] = { rowColumns: [], colColumn: null };
+      }
+      columnSelections[key].colColumn = value || null;
       updateColumnsBtn();
     }
     
@@ -1096,7 +1140,9 @@
       Object.keys(selectedTabs).forEach(key => {
         if (!selectedTabs[key]) return;
         const sel = columnSelections[key];
-        if (!sel || !sel.yAxis || !sel.xAxis) complete = false;
+        if (!sel || !sel.colColumn || !sel.rowColumns || sel.rowColumns.length === 0) {
+          complete = false;
+        }
       });
       columnsBtn.disabled = !complete;
     }
@@ -1141,14 +1187,12 @@
         
         filterFileData = data.file;
         
-        // Show loaded file UI
         filterDropZone.classList.add('hidden');
         filterFileLoaded.classList.remove('hidden');
         
         document.getElementById('filterFileName').textContent = file.name;
         document.getElementById('filterFileMeta').textContent = `${filterFileData.sheets.length} sheet(s)`;
         
-        // Populate sheet dropdown
         filterSheetSelect.innerHTML = filterFileData.sheets.map((s, i) => 
           `<option value="${i}">${s.name} (${s.data.length} rows)</option>`
         ).join('');
@@ -1180,7 +1224,6 @@
       const column = filterColumnSelect.value;
       const sheet = filterFileData.sheets[sheetIdx];
       
-      // Get unique values from the column
       const values = new Set();
       sheet.data.forEach(row => {
         const val = String(row[column] || '').trim();
@@ -1212,7 +1255,6 @@
       initMatrixConfig();
       renderConfig();
       
-      // Show/hide filter notice
       const notice = document.getElementById('filterActiveNotice');
       if (filterConfig.enabled && filterConfig.values.length > 0) {
         notice.classList.remove('hidden');
@@ -1385,7 +1427,7 @@
       document.getElementById('matricesPreview').innerHTML = matrices.map(m => `
         <div class="matrix-preview">
           <h3>${m.name}</h3>
-          <p>${m.xAxis.length} rows × ${m.yAxis.length} columns</p>
+          <p>${m.rows.length} rows × ${m.cols.length} columns</p>
         </div>
       `).join('');
     }
@@ -1450,7 +1492,6 @@
       uploadBtn.disabled = true;
       fileInput.value = '';
       
-      // Reset filter UI
       filterDropZone.classList.remove('hidden');
       filterFileLoaded.classList.add('hidden');
       filterFileInput.value = '';
