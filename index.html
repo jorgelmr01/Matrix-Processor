@@ -1706,27 +1706,50 @@
         };
       });
       
+      // Debug logging
+      console.log('=== COMPUTE DEBUG ===');
+      console.log('fileData:', fileData);
+      console.log('selectedTabs:', selectedTabs);
+      console.log('tabsForBackend:', tabsForBackend);
+      console.log('columnSelections:', columnSelections);
+      console.log('matrixConfig:', matrixConfig);
+      console.log('configForBackend:', configForBackend);
+      console.log('availableSources:', availableSources);
+      console.log('filterConfig:', filterConfig);
+      
       try {
+        const requestBody = {
+          fileData,
+          selectedTabs: tabsForBackend,
+          columnSelections,
+          matrixConfig: configForBackend,
+          filterConfig: filterConfig.enabled ? filterConfig : null
+        };
+        
+        console.log('Request body:', JSON.stringify(requestBody, null, 2));
+        
         const res = await fetch('/api/compute', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            fileData,
-            selectedTabs: tabsForBackend,
-            columnSelections,
-            matrixConfig: configForBackend,
-            filterConfig: filterConfig.enabled ? filterConfig : null
-          })
+          body: JSON.stringify(requestBody)
         });
         
         const data = await res.json();
+        console.log('Response:', data);
+        
         if (data.error) throw new Error(data.error);
         
         matrices = data.matrices;
+        
+        if (!matrices || matrices.length === 0) {
+          throw new Error('No matrices were generated. Check that your column selections are correct and the data files contain matching values. View debug log at: /api/debug-log');
+        }
+        
         goToStep(6);
         renderResults();
       } catch (err) {
-        alert('Error: ' + err.message);
+        console.error('Compute error:', err);
+        alert('Error: ' + err.message + '\n\nCheck browser console (F12) and server debug log for details.');
       } finally {
         loading.classList.add('hidden');
       }

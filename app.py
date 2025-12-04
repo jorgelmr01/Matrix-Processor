@@ -9,10 +9,44 @@ import sys
 import json
 import webbrowser
 import threading
+import traceback
 from datetime import datetime
 from io import BytesIO
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 import urllib.parse
+
+# ============================================
+# LOGGING SYSTEM
+# ============================================
+LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'matrix_processor_debug.log')
+
+def log_debug(message, data=None):
+    """Write detailed debug information to log file"""
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+    with open(LOG_FILE, 'a', encoding='utf-8') as f:
+        f.write(f"\n[{timestamp}] {message}\n")
+        if data is not None:
+            if isinstance(data, (dict, list)):
+                f.write(json.dumps(data, indent=2, default=str)[:5000] + "\n")
+            else:
+                f.write(str(data)[:5000] + "\n")
+
+def log_error(message, exception=None):
+    """Write error information to log file"""
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+    with open(LOG_FILE, 'a', encoding='utf-8') as f:
+        f.write(f"\n[{timestamp}] ERROR: {message}\n")
+        if exception:
+            f.write(f"Exception: {str(exception)}\n")
+            f.write(f"Traceback:\n{traceback.format_exc()}\n")
+
+def clear_log():
+    """Clear the log file"""
+    with open(LOG_FILE, 'w', encoding='utf-8') as f:
+        f.write(f"=== Matrix Processor Debug Log ===\n")
+        f.write(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write(f"Log file: {LOG_FILE}\n")
+        f.write("=" * 50 + "\n")
 
 # Check for required packages and install if missing
 def check_dependencies():
@@ -84,6 +118,18 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
         
         if self.path == '/api/status':
             self.send_json({'status': 'ok', 'files': len(app_state['file_data'])})
+        elif self.path == '/api/debug-log':
+            # Return the debug log file contents
+            try:
+                with open(LOG_FILE, 'r', encoding='utf-8') as f:
+                    log_content = f.read()
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/plain; charset=utf-8')
+                self.send_header('Content-Length', len(log_content.encode('utf-8')))
+                self.end_headers()
+                self.wfile.write(log_content.encode('utf-8'))
+            except Exception as e:
+                self.send_json({'error': str(e)}, 500)
         else:
             super().do_GET()
     
@@ -141,12 +187,19 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                         files_processed.append(filename)
             
             # Process all uploaded files
+            log_debug("=== FILE UPLOAD ===")
+            log_debug(f"Files to process: {list(app_state['files'].keys())}")
+            
             app_state['file_data'] = []
             for filename, content in app_state['files'].items():
                 try:
                     file_info = self.process_file(filename, content)
                     app_state['file_data'].append(file_info)
+                    log_debug(f"Processed '{filename}':")
+                    for sheet in file_info.get('sheets', []):
+                        log_debug(f"  Sheet '{sheet['name']}': {len(sheet.get('data', []))} rows, headers: {sheet.get('headers', [])}")
                 except Exception as e:
+                    log_error(f"Error processing {filename}", e)
                     self.send_json({'error': f'Error processing {filename}: {str(e)}'}, 400)
                     return
             
@@ -290,17 +343,32 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
     
     def handle_compute(self, content_length):
         """Compute matrices based on configuration"""
+        log_debug("=== COMPUTE MATRICES REQUEST ===")
+        
         body = self.rfile.read(content_length)
         config = json.loads(body.decode('utf-8'))
+        
+        log_debug("Received config keys", list(config.keys()))
+        log_debug("fileData count", len(config.get('fileData', [])))
+        log_debug("selectedTabs", config.get('selectedTabs'))
+        log_debug("columnSelections", config.get('columnSelections'))
+        log_debug("matrixConfig", config.get('matrixConfig'))
         
         # Extract filter config if present
         filter_config = config.get('filterConfig')
         filter_values = None
         filter_mappings = None
+        
+        log_debug("filterConfig", filter_config)
+        
         if filter_config and filter_config.get('enabled') and filter_config.get('values'):
             # Trim all filter values and convert to lowercase for case-insensitive matching
             filter_values = set(str(v).strip().lower() for v in filter_config['values'] if str(v).strip())
             filter_mappings = filter_config.get('columnMappings', {})
+            log_debug(f"Filter enabled with {len(filter_values)} values")
+            log_debug("Filter mappings", filter_mappings)
+        else:
+            log_debug("Filter NOT enabled or no values")
         
         try:
             matrices = self.compute_matrices(
@@ -311,8 +379,13 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                 filter_values,
                 filter_mappings
             )
+            log_debug(f"Computed {len(matrices)} matrices")
+            for m in matrices:
+                log_debug(f"  Matrix '{m['name']}': {len(m['rows'])} rows x {len(m['cols'])} cols")
+            
             self.send_json({'matrices': matrices})
         except Exception as e:
+            log_error("Error in compute_matrices", e)
             self.send_json({'error': str(e)}, 400)
     
     def compute_matrices(self, file_data, selected_tabs, column_selections, matrix_config, filter_values=None, filter_mappings=None):
@@ -331,6 +404,11 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
         - cols: column headers (from colColumn)
         - data: 2D array [row_idx][col_idx] with 1s at intersections
         """
+        log_debug("=== COMPUTE MATRICES START ===")
+        log_debug(f"matrix_config count: {len(matrix_config)}")
+        log_debug(f"file_data count: {len(file_data)}")
+        log_debug(f"filter_values: {filter_values is not None} ({len(filter_values) if filter_values else 0} values)")
+        
         matrices = []
         
         def get_row_value(row_data, row_columns):
@@ -349,29 +427,69 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                 return str(row_data.get(filter_col, '')).strip().lower()
             return None  # No filter mapping for this source
         
-        for config in matrix_config:
+        for config_idx, config in enumerate(matrix_config):
+            log_debug(f"\n--- Processing matrix config {config_idx}: '{config.get('name', 'unnamed')}' ---")
+            log_debug(f"Sources in config: {config.get('sources', [])}")
+            log_debug(f"sourceKeys in config: {config.get('sourceKeys', [])}")
+            
             # Collect all unique row and column values from all sources
             row_values = set()
             col_values = set()
             
-            for source in config['sources']:
+            # Handle both 'sources' (array of objects) and 'sourceKeys' (array of strings) formats
+            sources = config.get('sources', [])
+            if not sources and config.get('sourceKeys'):
+                # Convert sourceKeys to sources format
+                log_debug("Converting sourceKeys to sources format")
+                for sk in config['sourceKeys']:
+                    parts = sk.split('-')
+                    file_idx = int(parts[0])
+                    sheet_name = '-'.join(parts[1:])
+                    sources.append({'fileIndex': file_idx, 'sheetName': sheet_name})
+                log_debug(f"Converted sources: {sources}")
+            
+            for source in sources:
                 file_idx = source['fileIndex']
                 sheet_name = source['sheetName']
                 key = f"{file_idx}-{sheet_name}"
                 
-                file = file_data[file_idx]
-                sheet = next((s for s in file['sheets'] if s['name'] == sheet_name), None)
-                if not sheet:
+                log_debug(f"\n  Processing source: file_idx={file_idx}, sheet='{sheet_name}', key='{key}'")
+                
+                if file_idx >= len(file_data):
+                    log_debug(f"  ERROR: file_idx {file_idx} >= file_data length {len(file_data)}")
                     continue
                 
+                file = file_data[file_idx]
+                log_debug(f"  File: '{file.get('fileName', 'unknown')}'")
+                log_debug(f"  Available sheets: {[s['name'] for s in file.get('sheets', [])]}")
+                
+                sheet = next((s for s in file['sheets'] if s['name'] == sheet_name), None)
+                if not sheet:
+                    log_debug(f"  ERROR: Sheet '{sheet_name}' not found in file")
+                    continue
+                
+                log_debug(f"  Sheet data rows: {len(sheet.get('data', []))}")
+                log_debug(f"  Sheet headers: {sheet.get('headers', [])}")
+                
                 sel = column_selections.get(key, {})
+                log_debug(f"  Column selection for key '{key}': {sel}")
+                
                 row_columns = sel.get('rowColumns', [])
                 col_column = sel.get('colColumn')
                 
+                log_debug(f"  rowColumns: {row_columns}")
+                log_debug(f"  colColumn: {col_column}")
+                
                 if not row_columns or not col_column:
+                    log_debug(f"  SKIPPING: Missing rowColumns or colColumn")
                     continue
                 
+                rows_processed = 0
+                rows_added = 0
+                cols_added = 0
+                
                 for row in sheet['data']:
+                    rows_processed += 1
                     row_val = get_row_value(row, row_columns)
                     col_val = str(row.get(col_column, '')).strip()
                     
@@ -383,19 +501,35 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                             if filter_val is not None:
                                 if filter_val in filter_values:
                                     row_values.add(row_val)
+                                    rows_added += 1
                             else:
                                 # No mapping for this source, include all rows
                                 row_values.add(row_val)
+                                rows_added += 1
                         else:
                             # No filter enabled, include all rows
                             row_values.add(row_val)
+                            rows_added += 1
                     if col_val:
                         col_values.add(col_val)
+                        cols_added += 1
+                
+                log_debug(f"  Processed {rows_processed} rows, added {rows_added} unique row values, {cols_added} col values")
+                if rows_processed > 0 and rows_added == 0:
+                    # Sample some data for debugging
+                    sample_rows = sheet['data'][:3]
+                    log_debug(f"  SAMPLE DATA (first 3 rows):")
+                    for sr in sample_rows:
+                        log_debug(f"    Row: {sr}")
             
             sorted_rows = sorted(row_values)
             sorted_cols = sorted(col_values)
             
+            log_debug(f"\n  Total unique rows collected: {len(sorted_rows)}")
+            log_debug(f"  Total unique cols collected: {len(sorted_cols)}")
+            
             if not sorted_rows or not sorted_cols:
+                log_debug(f"  SKIPPING MATRIX: No rows ({len(sorted_rows)}) or no cols ({len(sorted_cols)})")
                 continue
             
             # Create matrix data
@@ -452,9 +586,20 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
         - cols: column headers (appear as first row, going across)
         - data: 2D array [row_idx][col_idx]
         """
+        log_debug("=== EXPORT REQUEST ===")
+        
         body = self.rfile.read(content_length)
         data = json.loads(body.decode('utf-8'))
         matrices = data.get('matrices', [])
+        
+        log_debug(f"Matrices to export: {len(matrices)}")
+        for m in matrices:
+            log_debug(f"  '{m.get('name', 'unnamed')}': {len(m.get('rows', []))} rows x {len(m.get('cols', []))} cols")
+        
+        if not matrices:
+            log_debug("ERROR: No matrices to export!")
+            self.send_json({'error': 'No matrices to export. The matrices array is empty.'}, 400)
+            return
         
         try:
             wb = Workbook()
@@ -702,11 +847,16 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
 
 def run_server(port=8080):
     """Start the web server"""
+    # Clear log file at startup
+    clear_log()
+    log_debug("Server starting...")
+    
     server = HTTPServer(('127.0.0.1', port), MatrixProcessorHandler)
     print(f"\n{'='*50}")
     print(f"  MATRIX PROCESSOR")
     print(f"{'='*50}")
     print(f"\n  Server running at: http://localhost:{port}")
+    print(f"\n  Debug log: {LOG_FILE}")
     print(f"\n  Opening browser...")
     print(f"\n  Keep this window open while using the app.")
     print(f"  Press Ctrl+C to stop.\n")
