@@ -35,6 +35,9 @@ check_dependencies()
 
 import pandas as pd
 from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.datavalidation import DataValidation
 
 # Store uploaded files and processing state
 app_state = {
@@ -394,6 +397,186 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
             wb = Workbook()
             wb.remove(wb.active)
             
+            # Define styles
+            header_fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+            header_font = Font(bold=True, color="FFFFFF", size=12)
+            title_font = Font(bold=True, size=14, color="1F4E79")
+            label_font = Font(bold=True, size=11)
+            normal_font = Font(size=11)
+            thin_border = Border(
+                left=Side(style='thin', color='D0D0D0'),
+                right=Side(style='thin', color='D0D0D0'),
+                top=Side(style='thin', color='D0D0D0'),
+                bottom=Side(style='thin', color='D0D0D0')
+            )
+            center_align = Alignment(horizontal='center', vertical='center')
+            left_align = Alignment(horizontal='left', vertical='center')
+            dropdown_fill = PatternFill(start_color="E8F4FD", end_color="E8F4FD", fill_type="solid")
+            result_fill = PatternFill(start_color="F0F9F0", end_color="F0F9F0", fill_type="solid")
+            
+            # ============================================
+            # Create LOOKUP sheet as the first sheet
+            # ============================================
+            lookup_ws = wb.create_sheet(title="Lookup", index=0)
+            
+            # Collect all unique row values and build a mapping of row -> columns by matrix
+            all_row_values = set()
+            row_to_cols = {}  # { row_value: { matrix_name: [col1, col2, ...], ... } }
+            
+            for matrix in matrices:
+                matrix_name = matrix['name']
+                rows = matrix.get('rows', [])
+                cols = matrix.get('cols', [])
+                matrix_data = matrix.get('data', [])
+                
+                for row_idx, row_val in enumerate(rows):
+                    all_row_values.add(row_val)
+                    if row_val not in row_to_cols:
+                        row_to_cols[row_val] = {}
+                    
+                    # Find all columns with value 1 for this row
+                    matching_cols = []
+                    if row_idx < len(matrix_data):
+                        for col_idx, val in enumerate(matrix_data[row_idx]):
+                            if val == 1 and col_idx < len(cols):
+                                matching_cols.append(cols[col_idx])
+                    
+                    if matching_cols:
+                        if matrix_name not in row_to_cols[row_val]:
+                            row_to_cols[row_val][matrix_name] = []
+                        row_to_cols[row_val][matrix_name].extend(matching_cols)
+            
+            sorted_row_values = sorted(all_row_values)
+            
+            # Title
+            lookup_ws.cell(row=1, column=1, value="MATRIX LOOKUP")
+            lookup_ws.cell(row=1, column=1).font = Font(bold=True, size=18, color="1F4E79")
+            lookup_ws.merge_cells('A1:E1')
+            
+            lookup_ws.cell(row=2, column=1, value="Select a row value to see all matching columns across matrices")
+            lookup_ws.cell(row=2, column=1).font = Font(size=11, italic=True, color="666666")
+            lookup_ws.merge_cells('A2:E2')
+            
+            # Dropdown selection area
+            lookup_ws.cell(row=4, column=1, value="Select Row Value:")
+            lookup_ws.cell(row=4, column=1).font = label_font
+            lookup_ws.cell(row=4, column=1).alignment = left_align
+            
+            # Cell for dropdown (B4)
+            dropdown_cell = lookup_ws.cell(row=4, column=2, value=sorted_row_values[0] if sorted_row_values else "")
+            dropdown_cell.fill = dropdown_fill
+            dropdown_cell.font = normal_font
+            dropdown_cell.border = thin_border
+            dropdown_cell.alignment = left_align
+            
+            # Create data validation for dropdown
+            if sorted_row_values:
+                # Store row values in a hidden area (column H onwards) for the dropdown
+                for idx, val in enumerate(sorted_row_values, start=1):
+                    lookup_ws.cell(row=idx, column=8, value=val)
+                
+                # Hide column H
+                lookup_ws.column_dimensions['H'].hidden = True
+                
+                # Create dropdown referencing the list
+                dv = DataValidation(
+                    type="list",
+                    formula1=f"$H$1:$H${len(sorted_row_values)}",
+                    allow_blank=False
+                )
+                dv.error = "Please select a value from the dropdown"
+                dv.errorTitle = "Invalid Selection"
+                dv.prompt = "Choose a row value"
+                dv.promptTitle = "Row Selection"
+                lookup_ws.add_data_validation(dv)
+                dv.add(dropdown_cell)
+            
+            # Results header
+            lookup_ws.cell(row=6, column=1, value="RESULTS")
+            lookup_ws.cell(row=6, column=1).font = title_font
+            
+            lookup_ws.cell(row=7, column=1, value="Matrix")
+            lookup_ws.cell(row=7, column=1).fill = header_fill
+            lookup_ws.cell(row=7, column=1).font = header_font
+            lookup_ws.cell(row=7, column=1).border = thin_border
+            lookup_ws.cell(row=7, column=1).alignment = center_align
+            
+            lookup_ws.cell(row=7, column=2, value="Matching Columns")
+            lookup_ws.cell(row=7, column=2).fill = header_fill
+            lookup_ws.cell(row=7, column=2).font = header_font
+            lookup_ws.cell(row=7, column=2).border = thin_border
+            lookup_ws.cell(row=7, column=2).alignment = center_align
+            lookup_ws.merge_cells('B7:E7')
+            
+            # Build a reference table for VLOOKUP (hidden in columns I, J, K...)
+            # Format: Row Value | Matrix Name | Matching Columns (comma-separated)
+            ref_row = 1
+            for row_val in sorted_row_values:
+                if row_val in row_to_cols:
+                    for matrix_name, cols_list in row_to_cols[row_val].items():
+                        lookup_ws.cell(row=ref_row, column=9, value=row_val)
+                        lookup_ws.cell(row=ref_row, column=10, value=matrix_name)
+                        lookup_ws.cell(row=ref_row, column=11, value=", ".join(sorted(set(cols_list))))
+                        ref_row += 1
+            
+            # Hide reference columns
+            lookup_ws.column_dimensions['I'].hidden = True
+            lookup_ws.column_dimensions['J'].hidden = True
+            lookup_ws.column_dimensions['K'].hidden = True
+            
+            # Add results area with formulas
+            result_start_row = 8
+            matrix_names = [m['name'] for m in matrices]
+            
+            for idx, matrix_name in enumerate(matrix_names):
+                current_row = result_start_row + idx
+                
+                # Matrix name cell
+                lookup_ws.cell(row=current_row, column=1, value=matrix_name)
+                lookup_ws.cell(row=current_row, column=1).font = label_font
+                lookup_ws.cell(row=current_row, column=1).border = thin_border
+                lookup_ws.cell(row=current_row, column=1).fill = result_fill
+                lookup_ws.cell(row=current_row, column=1).alignment = left_align
+                
+                # Matching columns cell with SUMPRODUCT-based lookup
+                # We'll use INDEX/MATCH or a simpler approach
+                # For simplicity, let's pre-populate based on first value and add a note
+                if sorted_row_values:
+                    first_val = sorted_row_values[0]
+                    if first_val in row_to_cols and matrix_name in row_to_cols[first_val]:
+                        initial_cols = ", ".join(sorted(set(row_to_cols[first_val][matrix_name])))
+                    else:
+                        initial_cols = "(no matches)"
+                else:
+                    initial_cols = ""
+                
+                # Use INDEX/MATCH formula to lookup dynamically
+                # =IFERROR(INDEX($K:$K,MATCH(1,($I:$I=$B$4)*($J:$J=A8),0)),"(no matches)")
+                formula = f'=IFERROR(INDEX($K:$K,MATCH(1,($I:$I=$B$4)*($J:$J=A{current_row}),0)),"(no matches)")'
+                
+                result_cell = lookup_ws.cell(row=current_row, column=2, value=formula)
+                result_cell.font = normal_font
+                result_cell.border = thin_border
+                result_cell.fill = result_fill
+                result_cell.alignment = left_align
+                lookup_ws.merge_cells(f'B{current_row}:E{current_row}')
+            
+            # Set column widths for lookup sheet
+            lookup_ws.column_dimensions['A'].width = 25
+            lookup_ws.column_dimensions['B'].width = 50
+            lookup_ws.column_dimensions['C'].width = 15
+            lookup_ws.column_dimensions['D'].width = 15
+            lookup_ws.column_dimensions['E'].width = 15
+            
+            # Add instructions
+            instructions_row = result_start_row + len(matrix_names) + 2
+            lookup_ws.cell(row=instructions_row, column=1, value="💡 Tip: Select a different value from the dropdown above to see matching columns for that row.")
+            lookup_ws.cell(row=instructions_row, column=1).font = Font(size=10, italic=True, color="888888")
+            lookup_ws.merge_cells(f'A{instructions_row}:E{instructions_row}')
+            
+            # ============================================
+            # Create matrix sheets
+            # ============================================
             for matrix in matrices:
                 # Sanitize sheet name (max 31 chars, no special chars)
                 sheet_name = matrix['name'][:31]
@@ -406,17 +589,40 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                 cols = matrix.get('cols', [])
                 matrix_data = matrix.get('data', [])
                 
-                # Header row: empty cell + column headers
+                # Header row: empty cell + column headers (styled)
                 ws.cell(row=1, column=1, value='')
+                ws.cell(row=1, column=1).fill = header_fill
+                ws.cell(row=1, column=1).border = thin_border
+                
                 for col_idx, col_val in enumerate(cols, start=2):
-                    ws.cell(row=1, column=col_idx, value=col_val)
+                    cell = ws.cell(row=1, column=col_idx, value=col_val)
+                    cell.fill = header_fill
+                    cell.font = header_font
+                    cell.border = thin_border
+                    cell.alignment = center_align
                 
                 # Data rows: row label + values
                 for row_idx, row_val in enumerate(rows, start=2):
-                    ws.cell(row=row_idx, column=1, value=row_val)
+                    # Row label
+                    label_cell = ws.cell(row=row_idx, column=1, value=row_val)
+                    label_cell.font = label_font
+                    label_cell.border = thin_border
+                    label_cell.fill = PatternFill(start_color="F5F5F5", end_color="F5F5F5", fill_type="solid")
+                    
+                    # Data cells
                     if row_idx - 2 < len(matrix_data):
                         for col_idx, val in enumerate(matrix_data[row_idx - 2], start=2):
-                            ws.cell(row=row_idx, column=col_idx, value=val)
+                            cell = ws.cell(row=row_idx, column=col_idx, value=val)
+                            cell.border = thin_border
+                            cell.alignment = center_align
+                            if val == 1:
+                                cell.fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+                                cell.font = Font(bold=True, color="006100")
+                
+                # Auto-fit column widths (approximate)
+                ws.column_dimensions['A'].width = max(12, max((len(str(r)) for r in rows), default=12) * 1.2)
+                for col_idx in range(2, len(cols) + 2):
+                    ws.column_dimensions[get_column_letter(col_idx)].width = 12
             
             # Save to bytes
             output = BytesIO()
