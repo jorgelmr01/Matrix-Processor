@@ -716,25 +716,35 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
             lookup_ws.cell(row=7, column=2).alignment = center_align
             lookup_ws.merge_cells('B7:E7')
             
-            # Build a reference table for VLOOKUP (hidden in columns I, J, K...)
-            # Format: Row Value | Matrix Name | Matching Columns (comma-separated)
+            # Build a reference table for VLOOKUP (hidden in columns I, J)
+            # Format: Composite Key (RowValue|||MatrixName) | Matching Columns
+            # Using ||| as separator to avoid conflicts with data containing | or common chars
             ref_row = 1
+            matrix_names = [m['name'] for m in matrices]
+            
             for row_val in sorted_row_values:
-                if row_val in row_to_cols:
-                    for matrix_name, cols_list in row_to_cols[row_val].items():
-                        lookup_ws.cell(row=ref_row, column=9, value=row_val)
-                        lookup_ws.cell(row=ref_row, column=10, value=matrix_name)
-                        lookup_ws.cell(row=ref_row, column=11, value=", ".join(sorted(set(cols_list))))
-                        ref_row += 1
+                for matrix_name in matrix_names:
+                    # Create composite key: RowValue|||MatrixName
+                    composite_key = f"{row_val}|||{matrix_name}"
+                    
+                    # Get matching columns for this combination
+                    if row_val in row_to_cols and matrix_name in row_to_cols[row_val]:
+                        matching = ", ".join(sorted(set(row_to_cols[row_val][matrix_name])))
+                    else:
+                        matching = "(no matches)"
+                    
+                    lookup_ws.cell(row=ref_row, column=9, value=composite_key)
+                    lookup_ws.cell(row=ref_row, column=10, value=matching)
+                    ref_row += 1
+            
+            total_ref_rows = ref_row - 1
             
             # Hide reference columns
             lookup_ws.column_dimensions['I'].hidden = True
             lookup_ws.column_dimensions['J'].hidden = True
-            lookup_ws.column_dimensions['K'].hidden = True
             
             # Add results area with formulas
             result_start_row = 8
-            matrix_names = [m['name'] for m in matrices]
             
             for idx, matrix_name in enumerate(matrix_names):
                 current_row = result_start_row + idx
@@ -746,21 +756,10 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                 lookup_ws.cell(row=current_row, column=1).fill = result_fill
                 lookup_ws.cell(row=current_row, column=1).alignment = left_align
                 
-                # Matching columns cell with SUMPRODUCT-based lookup
-                # We'll use INDEX/MATCH or a simpler approach
-                # For simplicity, let's pre-populate based on first value and add a note
-                if sorted_row_values:
-                    first_val = sorted_row_values[0]
-                    if first_val in row_to_cols and matrix_name in row_to_cols[first_val]:
-                        initial_cols = ", ".join(sorted(set(row_to_cols[first_val][matrix_name])))
-                    else:
-                        initial_cols = "(no matches)"
-                else:
-                    initial_cols = ""
-                
-                # Use INDEX/MATCH formula to lookup dynamically
-                # =IFERROR(INDEX($K:$K,MATCH(1,($I:$I=$B$4)*($J:$J=A8),0)),"(no matches)")
-                formula = f'=IFERROR(INDEX($K:$K,MATCH(1,($I:$I=$B$4)*($J:$J=A{current_row}),0)),"(no matches)")'
+                # Use simple VLOOKUP with composite key - this works in all Excel versions
+                # Formula: =VLOOKUP(SelectedRow&"|||"&MatrixName, RefTable, 2, FALSE)
+                # The composite key ensures exact match for both row value AND matrix name
+                formula = f'=IFERROR(VLOOKUP($B$4&"|||"&A{current_row},$I$1:$J${total_ref_rows},2,FALSE),"(no matches)")'
                 
                 result_cell = lookup_ws.cell(row=current_row, column=2, value=formula)
                 result_cell.font = normal_font
