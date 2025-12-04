@@ -231,8 +231,10 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
         # Extract filter config if present
         filter_config = config.get('filterConfig')
         filter_values = None
+        filter_mappings = None
         if filter_config and filter_config.get('enabled') and filter_config.get('values'):
             filter_values = set(filter_config['values'])
+            filter_mappings = filter_config.get('columnMappings', {})
         
         try:
             matrices = self.compute_matrices(
@@ -240,13 +242,14 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                 config['selectedTabs'],
                 config['columnSelections'],
                 config['matrixConfig'],
-                filter_values
+                filter_values,
+                filter_mappings
             )
             self.send_json({'matrices': matrices})
         except Exception as e:
             self.send_json({'error': str(e)}, 400)
     
-    def compute_matrices(self, file_data, selected_tabs, column_selections, matrix_config, filter_values=None):
+    def compute_matrices(self, file_data, selected_tabs, column_selections, matrix_config, filter_values=None, filter_mappings=None):
         """Compute intersection matrices
         
         New column_selections format:
@@ -255,6 +258,7 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
         - rowColumns: array of column names that combine to form row labels
         - colColumn: single column name for column values
         - filter_values: Optional set of values to filter rows by
+        - filter_mappings: Optional dict { sourceKey: columnName } mapping each source to its filter column
         
         Output matrix:
         - rows: row labels (from rowColumns, combined)
@@ -272,11 +276,12 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                     parts.append(val)
             return ' | '.join(parts) if parts else ''
         
-        def get_first_row_value(row_data, row_columns):
-            """Get the first column value for filtering purposes"""
-            if row_columns:
-                return str(row_data.get(row_columns[0], '')).strip()
-            return ''
+        def get_filter_value(row_data, source_key, filter_mappings):
+            """Get the value to use for filtering this row"""
+            if filter_mappings and source_key in filter_mappings:
+                filter_col = filter_mappings[source_key]
+                return str(row_data.get(filter_col, '')).strip()
+            return None  # No filter mapping for this source
         
         for config in matrix_config:
             # Collect all unique row and column values from all sources
@@ -302,12 +307,21 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                 
                 for row in sheet['data']:
                     row_val = get_row_value(row, row_columns)
-                    first_row_val = get_first_row_value(row, row_columns)
                     col_val = str(row.get(col_column, '')).strip()
                     
                     if row_val:
-                        # Apply filter based on first row column value (e.g., employee ID)
-                        if filter_values is None or first_row_val in filter_values:
+                        # Apply filter if enabled and this source has a filter mapping
+                        if filter_values is not None and filter_mappings:
+                            filter_val = get_filter_value(row, key, filter_mappings)
+                            # If source has mapping, only include if value matches filter
+                            if filter_val is not None:
+                                if filter_val in filter_values:
+                                    row_values.add(row_val)
+                            else:
+                                # No mapping for this source, include all rows
+                                row_values.add(row_val)
+                        else:
+                            # No filter enabled, include all rows
                             row_values.add(row_val)
                     if col_val:
                         col_values.add(col_val)
@@ -343,7 +357,14 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                     row_val = get_row_value(row, row_columns)
                     col_val = str(row.get(col_column, '')).strip()
                     
-                    if row_val and col_val and row_val in sorted_rows and col_val in sorted_cols:
+                    # Apply same filter logic as above
+                    should_include = True
+                    if filter_values is not None and filter_mappings:
+                        filter_val = get_filter_value(row, key, filter_mappings)
+                        if filter_val is not None and filter_val not in filter_values:
+                            should_include = False
+                    
+                    if should_include and row_val and col_val and row_val in sorted_rows and col_val in sorted_cols:
                         row_idx = sorted_rows.index(row_val)
                         col_idx = sorted_cols.index(col_val)
                         matrix_data[row_idx][col_idx] = 1

@@ -565,6 +565,46 @@
       color: var(--text-secondary);
     }
     
+    .filter-step {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    
+    .filter-step-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+    
+    .filter-step-header .step-number {
+      width: 28px;
+      height: 28px;
+      background: var(--accent);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    
+    .filter-step-header h3 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+    
+    .filter-step-header p {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+    
     .filter-file-info {
       display: flex;
       align-items: center;
@@ -573,7 +613,6 @@
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      margin-bottom: 16px;
     }
     
     .filter-file-info .icon { font-size: 24px; }
@@ -585,7 +624,6 @@
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 16px;
-      margin-top: 16px;
     }
     
     @media (max-width: 600px) { .filter-config { grid-template-columns: 1fr; } }
@@ -613,6 +651,58 @@
       font-weight: 600;
       margin-top: 12px;
     }
+    
+    .filter-mapping-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 10px;
+    }
+    
+    .filter-mapping-item:last-child { margin-bottom: 0; }
+    
+    .filter-mapping-item .source-name {
+      flex: 1;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    
+    .filter-mapping-item .source-name .file-name {
+      color: var(--text-secondary);
+      font-weight: 400;
+      font-size: 12px;
+      display: block;
+      margin-top: 2px;
+    }
+    
+    .filter-mapping-item select {
+      min-width: 180px;
+    }
+    
+    .filter-mapping-item .arrow {
+      color: var(--text-muted);
+      font-size: 18px;
+    }
+    
+    .filter-summary {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      background: var(--success-light);
+      color: var(--success);
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 500;
+      margin-top: 16px;
+    }
+    
+    .filter-summary .icon { font-size: 16px; }
+    .filter-summary strong { font-weight: 700; }
     
     .skip-filter-note {
       text-align: center;
@@ -785,35 +875,49 @@
       </div>
       
       <div class="filter-section">
-        <div class="filter-header">
-          <span class="icon">🔍</span>
-          <div>
-            <h3>Index File</h3>
-            <p>Upload a file containing a list of values to keep (e.g., active employee IDs)</p>
-          </div>
-        </div>
-        
-        <div id="filterDropZone" class="drop-zone small">
-          <div class="drop-zone-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="17 8 12 3 7 8"></polyline>
-              <line x1="12" y1="3" x2="12" y2="15"></line>
-            </svg>
-          </div>
-          <h3>Drop index file here or click to browse</h3>
-          <p>Excel or CSV file with a column of values to keep</p>
-          <input type="file" id="filterFileInput" accept=".xlsx,.xls,.csv" style="display:none">
-        </div>
-        
-        <div id="filterFileLoaded" class="hidden">
-          <div class="filter-file-info">
-            <span class="icon">📄</span>
-            <div class="info">
-              <div class="name" id="filterFileName"></div>
-              <div class="meta" id="filterFileMeta"></div>
+        <!-- Step 4a: Upload index file -->
+        <div class="filter-step">
+          <div class="filter-step-header">
+            <span class="step-number">1</span>
+            <div>
+              <h3>Upload Index File</h3>
+              <p>A file containing the list of values you want to keep (e.g., active employee IDs)</p>
             </div>
-            <button class="remove-btn" onclick="removeFilterFile()" title="Remove">×</button>
+          </div>
+          
+          <div id="filterDropZone" class="drop-zone small">
+            <div class="drop-zone-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+            </div>
+            <h3>Drop index file here or click to browse</h3>
+            <p>Excel or CSV file</p>
+            <input type="file" id="filterFileInput" accept=".xlsx,.xls,.csv" style="display:none">
+          </div>
+          
+          <div id="filterFileLoaded" class="hidden">
+            <div class="filter-file-info">
+              <span class="icon">📄</span>
+              <div class="info">
+                <div class="name" id="filterFileName"></div>
+                <div class="meta" id="filterFileMeta"></div>
+              </div>
+              <button class="remove-btn" onclick="removeFilterFile()" title="Remove">×</button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Step 4b: Configure index file column -->
+        <div id="filterConfigStep" class="filter-step hidden">
+          <div class="filter-step-header">
+            <span class="step-number">2</span>
+            <div>
+              <h3>Select Filter Column</h3>
+              <p>Choose which column in the index file contains the values to match</p>
+            </div>
           </div>
           
           <div class="filter-config">
@@ -828,11 +932,29 @@
           </div>
           
           <div class="filter-badge" id="filterPreview">
-            <span>✓</span> <span id="filterValueCount">0</span> unique values will be used as filter
+            <span>✓</span> <span id="filterValueCount">0</span> unique values found
           </div>
         </div>
         
-        <p class="skip-filter-note">You can skip this step if you don't need to filter rows</p>
+        <!-- Step 4c: Map columns to match -->
+        <div id="filterMappingStep" class="filter-step hidden">
+          <div class="filter-step-header">
+            <span class="step-number">3</span>
+            <div>
+              <h3>Map Columns to Match</h3>
+              <p>For each data source, select which column should be matched against the filter</p>
+            </div>
+          </div>
+          
+          <div id="filterMappingContainer"></div>
+          
+          <div class="filter-summary" id="filterSummary">
+            <span class="icon">✓</span>
+            <span>Rows will be filtered to match <strong id="filterSummaryCount">0</strong> values from the index file</span>
+          </div>
+        </div>
+        
+        <p class="skip-filter-note" id="skipFilterNote">You can skip this step if you don't need to filter rows</p>
       </div>
       
       <div class="btn-group">
@@ -847,11 +969,11 @@
         <h2>Configure your matrices</h2>
         <p>Create matrices and select which data sources to include in each</p>
       </div>
-      <div id="filterActiveNotice" class="hidden" style="background: var(--warning-light); border: 1px solid var(--warning); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+      <div id="filterActiveNotice" class="hidden" style="background: var(--success-light); border: 1px solid var(--success); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
         <span style="font-size: 20px;">🔍</span>
         <div>
-          <strong style="color: var(--warning);">Row filter active</strong>
-          <p style="font-size: 13px; color: var(--text-secondary); margin: 0;">Only rows matching the index file will be included in the matrices.</p>
+          <strong style="color: var(--success);">Row filter active</strong>
+          <p style="font-size: 13px; color: var(--text-secondary); margin: 0;" id="filterActiveDescription">Filtering rows based on index file.</p>
         </div>
       </div>
       <div id="configContainer"></div>
@@ -900,7 +1022,8 @@
       enabled: false,
       sheet: null,
       column: null,
-      values: []
+      values: [],
+      columnMappings: {} // { sourceKey: columnName } - which column in each source to match
     };
     
     // DOM Elements
@@ -1187,15 +1310,21 @@
         
         filterFileData = data.file;
         
+        // Show file loaded state
         filterDropZone.classList.add('hidden');
         filterFileLoaded.classList.remove('hidden');
-        
         document.getElementById('filterFileName').textContent = file.name;
         document.getElementById('filterFileMeta').textContent = `${filterFileData.sheets.length} sheet(s)`;
+        
+        // Show step 2 (filter column selection)
+        document.getElementById('filterConfigStep').classList.remove('hidden');
         
         filterSheetSelect.innerHTML = filterFileData.sheets.map((s, i) => 
           `<option value="${i}">${s.name} (${s.data.length} rows)</option>`
         ).join('');
+        
+        // Hide skip note when filter is active
+        document.getElementById('skipFilterNote').style.display = 'none';
         
         updateFilterColumns();
       } catch (err) {
@@ -1237,15 +1366,82 @@
       
       document.getElementById('filterValueCount').textContent = values.size;
       document.getElementById('filterPreview').classList.remove('hidden');
+      
+      // Show step 3 (column mapping) and render mappings
+      document.getElementById('filterMappingStep').classList.remove('hidden');
+      renderFilterMappings();
+      updateFilterSummary();
+    }
+    
+    function renderFilterMappings() {
+      const container = document.getElementById('filterMappingContainer');
+      const items = [];
+      
+      // Initialize mappings if needed
+      filterConfig.columnMappings = filterConfig.columnMappings || {};
+      
+      Object.keys(selectedTabs).forEach(key => {
+        if (!selectedTabs[key]) return;
+        
+        const [fileIdx, ...rest] = key.split('-');
+        const sheetName = rest.join('-');
+        const file = fileData[parseInt(fileIdx)];
+        const sheet = file.sheets.find(s => s.name === sheetName);
+        if (!sheet) return;
+        
+        // Get the row columns selected in step 3
+        const sel = columnSelections[key] || {};
+        const rowColumns = sel.rowColumns || [];
+        
+        // Default to first row column if not set
+        if (!filterConfig.columnMappings[key] && rowColumns.length > 0) {
+          filterConfig.columnMappings[key] = rowColumns[0];
+        }
+        
+        const currentMapping = filterConfig.columnMappings[key] || '';
+        
+        items.push(`
+          <div class="filter-mapping-item">
+            <div class="source-name">
+              ${sheetName}
+              <span class="file-name">${file.fileName}</span>
+            </div>
+            <span class="arrow">→</span>
+            <select onchange="setFilterMapping('${key}', this.value)">
+              <option value="">Don't filter this source</option>
+              ${sheet.headers.map(h => `<option value="${h}" ${currentMapping === h ? 'selected' : ''}>${h}</option>`).join('')}
+            </select>
+          </div>
+        `);
+      });
+      
+      container.innerHTML = items.join('');
+    }
+    
+    function setFilterMapping(key, column) {
+      if (column) {
+        filterConfig.columnMappings[key] = column;
+      } else {
+        delete filterConfig.columnMappings[key];
+      }
+      updateFilterSummary();
+    }
+    
+    function updateFilterSummary() {
+      const count = filterConfig.values ? filterConfig.values.length : 0;
+      document.getElementById('filterSummaryCount').textContent = count;
     }
     
     function removeFilterFile() {
       filterFile = null;
       filterFileData = null;
-      filterConfig = { enabled: false, sheet: null, column: null, values: [] };
+      filterConfig = { enabled: false, sheet: null, column: null, values: [], columnMappings: {} };
       
       filterDropZone.classList.remove('hidden');
       filterFileLoaded.classList.add('hidden');
+      document.getElementById('filterConfigStep').classList.add('hidden');
+      document.getElementById('filterMappingStep').classList.add('hidden');
+      document.getElementById('skipFilterNote').style.display = 'block';
       filterFileInput.value = '';
     }
     
@@ -1259,6 +1455,11 @@
       if (filterConfig.enabled && filterConfig.values.length > 0) {
         notice.classList.remove('hidden');
         notice.style.display = 'flex';
+        // Update description with filter info
+        const mappedCount = Object.keys(filterConfig.columnMappings || {}).length;
+        const valuesCount = filterConfig.values.length;
+        document.getElementById('filterActiveDescription').textContent = 
+          `Filtering ${mappedCount} data source${mappedCount !== 1 ? 's' : ''} against ${valuesCount} unique values from the index file.`;
       } else {
         notice.classList.add('hidden');
       }
@@ -1485,7 +1686,7 @@
       availableSources = [];
       filterFile = null;
       filterFileData = null;
-      filterConfig = { enabled: false, sheet: null, column: null, values: [] };
+      filterConfig = { enabled: false, sheet: null, column: null, values: [], columnMappings: {} };
       
       fileItems.innerHTML = '';
       fileList.classList.add('hidden');
@@ -1494,6 +1695,9 @@
       
       filterDropZone.classList.remove('hidden');
       filterFileLoaded.classList.add('hidden');
+      document.getElementById('filterConfigStep').classList.add('hidden');
+      document.getElementById('filterMappingStep').classList.add('hidden');
+      document.getElementById('skipFilterNote').style.display = 'block';
       filterFileInput.value = '';
       
       fetch('/api/reset', { method: 'POST' });
