@@ -100,6 +100,8 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
             self.handle_compute(content_length)
         elif self.path == '/api/export':
             self.handle_export(content_length)
+        elif self.path == '/api/validate-filter':
+            self.handle_validate_filter(content_length)
         elif self.path == '/api/reset':
             app_state['files'] = {}
             app_state['file_data'] = []
@@ -160,11 +162,20 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
             'sheets': []
         }
         
+        def trim_value(val):
+            """Trim whitespace from values"""
+            return str(val).strip() if val is not None else ''
+        
         try:
             if filename.endswith('.csv'):
                 df = pd.read_csv(BytesIO(content))
+                # Trim column headers
+                df.columns = [str(c).strip() for c in df.columns]
                 headers = df.columns.tolist()
-                data = df.fillna('').astype(str).to_dict('records')
+                # Convert to strings and trim all values
+                data = []
+                for _, row in df.fillna('').iterrows():
+                    data.append({col: trim_value(row[col]) for col in headers})
                 file_info['sheets'].append({
                     'name': 'Sheet1',
                     'headers': headers,
@@ -174,8 +185,13 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                 xlsx = pd.ExcelFile(BytesIO(content))
                 for sheet_name in xlsx.sheet_names:
                     df = pd.read_excel(xlsx, sheet_name=sheet_name)
+                    # Trim column headers
+                    df.columns = [str(c).strip() for c in df.columns]
                     headers = df.columns.tolist()
-                    data = df.fillna('').astype(str).to_dict('records')
+                    # Convert to strings and trim all values
+                    data = []
+                    for _, row in df.fillna('').iterrows():
+                        data.append({col: trim_value(row[col]) for col in headers})
                     file_info['sheets'].append({
                         'name': sheet_name,
                         'headers': headers,
@@ -222,6 +238,52 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
         else:
             self.send_json({'error': 'Invalid content type'}, 400)
     
+    def handle_validate_filter(self, content_length):
+        """Validate filter matches - returns count of matching rows per source"""
+        body = self.rfile.read(content_length)
+        config = json.loads(body.decode('utf-8'))
+        
+        filter_values = config.get('filterValues', [])
+        column_mappings = config.get('columnMappings', {})
+        file_data = config.get('fileData', [])
+        
+        # Trim all filter values
+        filter_values_set = set(str(v).strip().lower() for v in filter_values if str(v).strip())
+        
+        results = {}
+        
+        for source_key, filter_column in column_mappings.items():
+            if not filter_column:
+                continue
+            
+            parts = source_key.split('-')
+            file_idx = int(parts[0])
+            sheet_name = '-'.join(parts[1:])
+            
+            if file_idx >= len(file_data):
+                continue
+            
+            file = file_data[file_idx]
+            sheet = next((s for s in file['sheets'] if s['name'] == sheet_name), None)
+            if not sheet:
+                continue
+            
+            total_rows = len(sheet['data'])
+            matching_rows = 0
+            
+            for row in sheet['data']:
+                val = str(row.get(filter_column, '')).strip().lower()
+                if val and val in filter_values_set:
+                    matching_rows += 1
+            
+            results[source_key] = {
+                'total': total_rows,
+                'matching': matching_rows,
+                'filterColumn': filter_column
+            }
+        
+        self.send_json({'results': results})
+    
     def handle_process(self, content_length):
         """Return processed file data"""
         self.send_json({'files': app_state['file_data']})
@@ -236,7 +298,8 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
         filter_values = None
         filter_mappings = None
         if filter_config and filter_config.get('enabled') and filter_config.get('values'):
-            filter_values = set(filter_config['values'])
+            # Trim all filter values and convert to lowercase for case-insensitive matching
+            filter_values = set(str(v).strip().lower() for v in filter_config['values'] if str(v).strip())
             filter_mappings = filter_config.get('columnMappings', {})
         
         try:
@@ -280,10 +343,10 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
             return ' | '.join(parts) if parts else ''
         
         def get_filter_value(row_data, source_key, filter_mappings):
-            """Get the value to use for filtering this row"""
+            """Get the value to use for filtering this row (lowercase for case-insensitive matching)"""
             if filter_mappings and source_key in filter_mappings:
                 filter_col = filter_mappings[source_key]
-                return str(row_data.get(filter_col, '')).strip()
+                return str(row_data.get(filter_col, '')).strip().lower()
             return None  # No filter mapping for this source
         
         for config in matrix_config:

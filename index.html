@@ -112,6 +112,17 @@
       background: var(--success-light);
       border-color: var(--success);
       color: var(--success);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    
+    .progress .step.completed:hover {
+      background: var(--success);
+      color: white;
+    }
+    
+    .progress .step.completed:hover .num {
+      background: rgba(255,255,255,0.3);
     }
     
     .progress .step.completed .num {
@@ -688,6 +699,35 @@
       font-size: 18px;
     }
     
+    .filter-mapping-item .match-info {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 100px;
+      font-weight: 600;
+      min-width: 80px;
+      text-align: center;
+    }
+    
+    .filter-mapping-item .match-info.good {
+      background: var(--success-light);
+      color: var(--success);
+    }
+    
+    .filter-mapping-item .match-info.warning {
+      background: var(--warning-light);
+      color: var(--warning);
+    }
+    
+    .filter-mapping-item .match-info.none {
+      background: #fef2f2;
+      color: var(--error);
+    }
+    
+    .filter-mapping-item .match-info.skip {
+      background: var(--bg-hover);
+      color: var(--text-muted);
+    }
+    
     .filter-summary {
       display: flex;
       align-items: center;
@@ -992,8 +1032,11 @@
         <p id="matricesCount"></p>
       </div>
       <div class="matrices-grid" id="matricesPreview"></div>
-      <div class="btn-group">
-        <button class="btn btn-secondary" onclick="resetApp()">Start over</button>
+      <div class="btn-group" style="justify-content: space-between;">
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-secondary" onclick="goToStep(5)">← Back</button>
+          <button class="btn btn-secondary" onclick="resetApp()">Start over</button>
+        </div>
         <button class="btn btn-success" id="exportBtn">⬇ Download Excel</button>
       </div>
     </div>
@@ -1353,6 +1396,7 @@
       const column = filterColumnSelect.value;
       const sheet = filterFileData.sheets[sheetIdx];
       
+      // Collect and trim all filter values
       const values = new Set();
       sheet.data.forEach(row => {
         const val = String(row[column] || '').trim();
@@ -1370,7 +1414,6 @@
       // Show step 3 (column mapping) and render mappings
       document.getElementById('filterMappingStep').classList.remove('hidden');
       renderFilterMappings();
-      updateFilterSummary();
     }
     
     function renderFilterMappings() {
@@ -1401,7 +1444,7 @@
         const currentMapping = filterConfig.columnMappings[key] || '';
         
         items.push(`
-          <div class="filter-mapping-item">
+          <div class="filter-mapping-item" data-key="${key}">
             <div class="source-name">
               ${sheetName}
               <span class="file-name">${file.fileName}</span>
@@ -1411,11 +1454,71 @@
               <option value="">Don't filter this source</option>
               ${sheet.headers.map(h => `<option value="${h}" ${currentMapping === h ? 'selected' : ''}>${h}</option>`).join('')}
             </select>
+            <span class="match-info skip" data-match-info="${key}">—</span>
           </div>
         `);
       });
       
       container.innerHTML = items.join('');
+      
+      // Validate matches after rendering
+      validateFilterMatches();
+    }
+    
+    async function validateFilterMatches() {
+      if (!filterConfig.values || filterConfig.values.length === 0) return;
+      if (!filterConfig.columnMappings || Object.keys(filterConfig.columnMappings).length === 0) return;
+      
+      try {
+        const res = await fetch('/api/validate-filter', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filterValues: filterConfig.values,
+            columnMappings: filterConfig.columnMappings,
+            fileData: fileData
+          })
+        });
+        
+        const data = await res.json();
+        
+        if (data.results) {
+          let totalMatches = 0;
+          
+          Object.keys(data.results).forEach(key => {
+            const info = data.results[key];
+            const matchEl = document.querySelector(`[data-match-info="${key}"]`);
+            if (matchEl) {
+              totalMatches += info.matching;
+              
+              if (info.matching === 0) {
+                matchEl.className = 'match-info none';
+                matchEl.textContent = '0 matches';
+              } else if (info.matching < info.total * 0.1) {
+                matchEl.className = 'match-info warning';
+                matchEl.textContent = `${info.matching}/${info.total}`;
+              } else {
+                matchEl.className = 'match-info good';
+                matchEl.textContent = `${info.matching}/${info.total}`;
+              }
+            }
+          });
+          
+          // Update sources without mapping
+          document.querySelectorAll('[data-match-info]').forEach(el => {
+            const key = el.getAttribute('data-match-info');
+            if (!data.results[key]) {
+              el.className = 'match-info skip';
+              el.textContent = 'No filter';
+            }
+          });
+          
+          // Update summary
+          updateFilterSummary(totalMatches);
+        }
+      } catch (err) {
+        console.error('Filter validation error:', err);
+      }
     }
     
     function setFilterMapping(key, column) {
@@ -1424,12 +1527,21 @@
       } else {
         delete filterConfig.columnMappings[key];
       }
-      updateFilterSummary();
+      validateFilterMatches();
     }
     
-    function updateFilterSummary() {
+    function updateFilterSummary(totalMatches) {
       const count = filterConfig.values ? filterConfig.values.length : 0;
       document.getElementById('filterSummaryCount').textContent = count;
+      
+      // Update the summary message
+      const summary = document.getElementById('filterSummary');
+      if (totalMatches !== undefined) {
+        summary.innerHTML = `
+          <span class="icon">✓</span>
+          <span>Filter has <strong>${count}</strong> values | <strong>${totalMatches}</strong> total row matches across all sources</span>
+        `;
+      }
     }
     
     function removeFilterFile() {
@@ -1674,7 +1786,44 @@
       for (let i = 1; i <= 6; i++) {
         document.getElementById(`step${i}`).classList.toggle('hidden', i !== step);
       }
+      
+      // Re-render UI when navigating to certain steps
+      if (step === 2) {
+        renderTabs();
+      } else if (step === 3) {
+        renderColumns();
+      } else if (step === 4 && filterFileData) {
+        renderFilterMappings();
+      } else if (step === 5) {
+        buildAvailableSources();
+        initMatrixConfig();
+        renderConfig();
+        
+        // Update filter notice
+        const notice = document.getElementById('filterActiveNotice');
+        if (filterConfig.enabled && filterConfig.values.length > 0) {
+          notice.classList.remove('hidden');
+          notice.style.display = 'flex';
+          const mappedCount = Object.keys(filterConfig.columnMappings || {}).length;
+          const valuesCount = filterConfig.values.length;
+          document.getElementById('filterActiveDescription').textContent = 
+            `Filtering ${mappedCount} data source${mappedCount !== 1 ? 's' : ''} against ${valuesCount} unique values from the index file.`;
+        } else {
+          notice.classList.add('hidden');
+        }
+      }
     }
+    
+    // Make progress steps clickable for navigation
+    document.querySelectorAll('.progress .step').forEach(el => {
+      el.addEventListener('click', () => {
+        const step = parseInt(el.dataset.step);
+        // Only allow navigating to completed steps (steps before current)
+        if (el.classList.contains('completed')) {
+          goToStep(step);
+        }
+      });
+    });
     
     function resetApp() {
       files = [];
