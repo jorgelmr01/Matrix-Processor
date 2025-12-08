@@ -245,9 +245,13 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
         # Extract filter config if present
         filter_config = config.get('filterConfig')
         filter_values = None
+        source_mappings = {}
+        
         if filter_config and filter_config.get('enabled') and filter_config.get('values'):
-            # Case-insensitive filter
+            # Case-insensitive filter values
             filter_values = set(v.lower().strip() for v in filter_config['values'])
+            # Get source-specific column mappings
+            source_mappings = filter_config.get('sourceMappings', {})
         
         try:
             matrices = self.compute_matrices(
@@ -255,7 +259,8 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                 config['selectedTabs'],
                 config['columnSelections'],
                 config['matrixConfig'],
-                filter_values
+                filter_values,
+                source_mappings
             )
             self.send_json({'matrices': matrices})
         except Exception as e:
@@ -270,12 +275,16 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                 parts.append(val)
         return ' | '.join(parts) if parts else ''
     
-    def compute_matrices(self, file_data, selected_tabs, column_selections, matrix_config, filter_values=None):
+    def compute_matrices(self, file_data, selected_tabs, column_selections, matrix_config, filter_values=None, source_mappings=None):
         """Compute intersection matrices with multi-column X axis support
         
         Args:
-            filter_values: Optional set of lowercase values to filter X axis (rows) by
+            filter_values: Optional set of lowercase values to filter rows by
+            source_mappings: Dict mapping source key to column name for filter matching
         """
+        if source_mappings is None:
+            source_mappings = {}
+        
         matrices = []
         
         for config in matrix_config:
@@ -303,6 +312,9 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                     if not x_cols and sel.get('xAxis'):
                         x_cols = [sel.get('xAxis')]
                     
+                    # Get filter column for this source
+                    filter_col = source_mappings.get(key)
+                    
                     for row in sheet['data']:
                         y_val = str(row.get(y_col, '')).strip()
                         x_val = self.get_row_value(row, x_cols)
@@ -310,10 +322,16 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                         if y_val:
                             y_values.add(y_val)
                         if x_val:
-                            # Apply filter if present - case-insensitive
+                            # Apply filter if present - using source-specific column
                             if filter_values is None:
                                 x_values.add(x_val)
+                            elif filter_col:
+                                # Use the mapped filter column
+                                filter_val = str(row.get(filter_col, '')).strip().lower()
+                                if filter_val in filter_values:
+                                    x_values.add(x_val)
                             else:
+                                # Fallback: check if any filter value is in the row value
                                 x_val_lower = x_val.lower()
                                 if any(fv in x_val_lower for fv in filter_values):
                                     x_values.add(x_val)
@@ -375,6 +393,9 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                     if not x_cols and sel.get('xAxis'):
                         x_cols = [sel.get('xAxis')]
                     
+                    # Get filter column for this source
+                    filter_col = source_mappings.get(key)
+                    
                     y_values = set()
                     x_values = set()
                     
@@ -385,10 +406,16 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                         if y_val:
                             y_values.add(y_val)
                         if x_val:
-                            # Apply filter if present - case-insensitive
+                            # Apply filter if present - using source-specific column
                             if filter_values is None:
                                 x_values.add(x_val)
+                            elif filter_col:
+                                # Use the mapped filter column
+                                filter_val = str(row.get(filter_col, '')).strip().lower()
+                                if filter_val in filter_values:
+                                    x_values.add(x_val)
                             else:
+                                # Fallback: check if any filter value is in the row value
                                 x_val_lower = x_val.lower()
                                 if any(fv in x_val_lower for fv in filter_values):
                                     x_values.add(x_val)
@@ -441,40 +468,47 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
             one_fill = PatternFill(start_color="DCFCE7", end_color="DCFCE7", fill_type="solid")
             
             # ========== CONSULTA SHEET ==========
+            # Dynamic lookup with dropdown - one column per matrix
             lookup_ws = wb.create_sheet(title="Consulta")
             
-            # Collect all unique row values and their matches per matrix
+            # Collect data per matrix: {matrix_name: {row_val: [perm1, perm2, ...]}}
+            matrix_data_lookup = {}
             all_row_values = set()
-            row_to_cols = {}  # {row_val: {matrix_name: [col1, col2, ...]}}
-            matrix_names = [m['name'] for m in matrices]
+            matrix_names = [m['name'][:30] for m in matrices]  # Truncate names for display
             
             for matrix in matrices:
-                matrix_name = matrix['name']
-                rows = matrix['xAxis']  # X axis = rows
-                cols = matrix['yAxis']  # Y axis = columns
-                matrix_data = matrix['data']
+                matrix_name = matrix['name'][:30]
+                rows = matrix['xAxis']
+                cols = matrix['yAxis']
+                m_data = matrix['data']
+                
+                if matrix_name not in matrix_data_lookup:
+                    matrix_data_lookup[matrix_name] = {}
                 
                 for row_idx, row_val in enumerate(rows):
                     all_row_values.add(row_val)
-                    if row_val not in row_to_cols:
-                        row_to_cols[row_val] = {}
-                    
-                    # Find all columns with value 1 for this row
-                    matching_cols = []
-                    if row_idx < len(matrix_data):
-                        for col_idx, val in enumerate(matrix_data[row_idx]):
+                    if row_idx < len(m_data):
+                        perms = []
+                        for col_idx, val in enumerate(m_data[row_idx]):
                             if val == 1 and col_idx < len(cols):
-                                matching_cols.append(cols[col_idx])
-                    
-                    if matching_cols:
-                        if matrix_name not in row_to_cols[row_val]:
-                            row_to_cols[row_val][matrix_name] = []
-                        row_to_cols[row_val][matrix_name].extend(matching_cols)
+                                perms.append(cols[col_idx])
+                        if perms:
+                            if row_val not in matrix_data_lookup[matrix_name]:
+                                matrix_data_lookup[matrix_name][row_val] = []
+                            matrix_data_lookup[matrix_name][row_val].extend(perms)
             
-            sorted_row_values = sorted(all_row_values)
+            sorted_row_values = sorted(all_row_values, key=str.lower)
+            
+            # Calculate max permissions any user has in any matrix
+            max_perms = 1
+            for matrix_name in matrix_names:
+                for row_val, perms in matrix_data_lookup.get(matrix_name, {}).items():
+                    max_perms = max(max_perms, len(perms))
+            
+            num_result_rows = max(max_perms, 25)
+            num_cols = len(matrix_names) + 1
             
             # Title
-            num_cols = len(matrix_names) + 1
             lookup_ws.merge_cells(f'A1:{get_column_letter(num_cols)}1')
             title_cell = lookup_ws['A1']
             title_cell.value = "Consulta de Permisos por Usuario"
@@ -485,26 +519,27 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
             # Subtitle
             lookup_ws.merge_cells(f'A2:{get_column_letter(num_cols)}2')
             subtitle_cell = lookup_ws['A2']
-            subtitle_cell.value = "Selecciona un usuario del menú desplegable para ver sus permisos en todas las matrices"
+            subtitle_cell.value = "Selecciona un usuario del menú desplegable para ver sus permisos"
             subtitle_cell.font = Font(size=11, color="64748B")
             subtitle_cell.alignment = Alignment(horizontal="center", vertical="center")
             lookup_ws.row_dimensions[2].height = 25
             
-            # Dropdown label and cell
+            # Dropdown label
             lookup_ws['A4'] = "Seleccionar Usuario:"
             lookup_ws['A4'].font = Font(bold=True)
             lookup_ws['A4'].alignment = Alignment(horizontal="right", vertical="center")
             
+            # Store dropdown values in a hidden column (column after all matrix columns + buffer)
+            dropdown_col = num_cols + 3
+            for idx, val in enumerate(sorted_row_values, start=1):
+                lookup_ws.cell(row=idx, column=dropdown_col, value=val)
+            lookup_ws.column_dimensions[get_column_letter(dropdown_col)].hidden = True
+            
             # Create dropdown in B4
             if sorted_row_values:
-                # Store values in a hidden area for the dropdown (column Z)
-                for idx, val in enumerate(sorted_row_values):
-                    lookup_ws.cell(row=idx + 1, column=26, value=val)
-                
-                # Create data validation
                 dv = DataValidation(
                     type="list",
-                    formula1=f"$Z$1:$Z${len(sorted_row_values)}",
+                    formula1=f"${get_column_letter(dropdown_col)}$1:${get_column_letter(dropdown_col)}${len(sorted_row_values)}",
                     allow_blank=True
                 )
                 dv.error = "Por favor selecciona un valor de la lista"
@@ -522,85 +557,79 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                 bottom=Side(style='medium', color='F59E0B')
             )
             lookup_ws.column_dimensions['A'].width = 20
-            lookup_ws.column_dimensions['B'].width = 40
+            lookup_ws.column_dimensions['B'].width = 45
             
-            # Hide reference column
-            lookup_ws.column_dimensions['Z'].hidden = True
-            
-            # Headers row - one column per matrix
-            lookup_ws['A6'] = "Fila"
+            # Headers row - "#" column + one column per matrix
+            lookup_ws['A6'] = "#"
             lookup_ws['A6'].font = header_font
             lookup_ws['A6'].fill = header_fill
             lookup_ws['A6'].alignment = header_align
             lookup_ws['A6'].border = cell_border
             
             for col_idx, matrix_name in enumerate(matrix_names, start=2):
-                cell = lookup_ws.cell(row=6, column=col_idx, value=matrix_name[:30])
+                cell = lookup_ws.cell(row=6, column=col_idx, value=matrix_name)
                 cell.font = header_font
                 cell.fill = header_fill
                 cell.alignment = header_align
                 cell.border = cell_border
                 lookup_ws.column_dimensions[get_column_letter(col_idx)].width = 35
             
-            # Build reference data for each matrix in hidden columns (starting from AA)
-            # For each matrix, store row_val -> list of matching columns
-            ref_start_col = 27  # Column AA
+            # Build lookup data for each matrix in hidden columns
+            # Structure: For each matrix, create columns with Key (user|index) and Value (permission)
+            lookup_start_col = dropdown_col + 2
+            matrix_lookup_ranges = {}
             
             for matrix_idx, matrix_name in enumerate(matrix_names):
-                # Store data for this matrix: col1 = row_val, col2 = match_index, col3 = col_value
-                ref_col = ref_start_col + (matrix_idx * 3)
-                ref_row = 1
+                key_col = lookup_start_col + (matrix_idx * 2)
+                val_col = key_col + 1
+                
+                row_num = 1
+                matrix_perms = matrix_data_lookup.get(matrix_name, {})
                 
                 for row_val in sorted_row_values:
-                    if row_val in row_to_cols and matrix_name in row_to_cols[row_val]:
-                        cols_list = sorted(set(row_to_cols[row_val][matrix_name]))
-                        for match_idx, col_val in enumerate(cols_list):
-                            lookup_ws.cell(row=ref_row, column=ref_col, value=row_val)
-                            lookup_ws.cell(row=ref_row, column=ref_col + 1, value=match_idx + 1)
-                            lookup_ws.cell(row=ref_row, column=ref_col + 2, value=col_val)
-                            ref_row += 1
+                    if row_val in matrix_perms:
+                        for perm_idx, perm in enumerate(sorted(set(matrix_perms[row_val])), start=1):
+                            # Key format: "user_value|index"
+                            lookup_ws.cell(row=row_num, column=key_col, value=f"{row_val}|{perm_idx}")
+                            lookup_ws.cell(row=row_num, column=val_col, value=perm)
+                            row_num += 1
                 
-                # Hide reference columns
-                for c in range(ref_col, ref_col + 3):
-                    lookup_ws.column_dimensions[get_column_letter(c)].hidden = True
+                # Store range info
+                if row_num > 1:
+                    matrix_lookup_ranges[matrix_name] = {
+                        'key_col': get_column_letter(key_col),
+                        'val_col': get_column_letter(val_col),
+                        'last_row': row_num - 1
+                    }
+                
+                # Hide these columns
+                lookup_ws.column_dimensions[get_column_letter(key_col)].hidden = True
+                lookup_ws.column_dimensions[get_column_letter(val_col)].hidden = True
             
-            # Calculate max matches for any user in any matrix
-            max_matches = 1
-            for row_val in sorted_row_values:
-                if row_val in row_to_cols:
-                    for matrix_name in matrix_names:
-                        if matrix_name in row_to_cols[row_val]:
-                            max_matches = max(max_matches, len(row_to_cols[row_val][matrix_name]))
-            
-            # Create result rows with formulas
-            num_result_rows = max(max_matches, 20)  # At least 20 rows for display
-            
+            # Create result rows with VLOOKUP formulas
             for i in range(num_result_rows):
                 result_row = 7 + i
                 
                 # Row number
-                lookup_ws.cell(row=result_row, column=1, value=i + 1)
-                lookup_ws.cell(row=result_row, column=1).border = cell_border
-                lookup_ws.cell(row=result_row, column=1).alignment = Alignment(horizontal="center")
+                cell = lookup_ws.cell(row=result_row, column=1, value=i + 1)
+                cell.border = cell_border
+                cell.alignment = Alignment(horizontal="center")
+                cell.font = Font(color="94A3B8")
                 
-                # For each matrix, create formula to find nth match
-                for matrix_idx, matrix_name in enumerate(matrix_names):
-                    ref_col = ref_start_col + (matrix_idx * 3)
-                    ref_col_letter = get_column_letter(ref_col)
-                    val_col_letter = get_column_letter(ref_col + 2)
-                    
-                    # Count total rows of reference data for this matrix
-                    ref_count = sum(1 for rv in sorted_row_values 
-                                   if rv in row_to_cols and matrix_name in row_to_cols[rv] 
-                                   for _ in row_to_cols[rv][matrix_name])
-                    
-                    if ref_count > 0:
-                        # Formula: IFERROR(INDEX(values, SMALL(IF(keys=$B$4, ROW(keys)-ROW(keys)+1), n)), "")
-                        formula = f'=IFERROR(INDEX(${val_col_letter}$1:${val_col_letter}${ref_count},SMALL(IF(${ref_col_letter}$1:${ref_col_letter}${ref_count}=$B$4,ROW(${ref_col_letter}$1:${ref_col_letter}${ref_count})-ROW(${ref_col_letter}$1)+1),{i+1})),"")'
+                # For each matrix, create VLOOKUP formula
+                for matrix_idx, matrix_name in enumerate(matrix_names, start=2):
+                    if matrix_name in matrix_lookup_ranges:
+                        info = matrix_lookup_ranges[matrix_name]
+                        key_col = info['key_col']
+                        val_col = info['val_col']
+                        last_row = info['last_row']
+                        
+                        # VLOOKUP formula: =IFERROR(VLOOKUP($B$4&"|"&row_num, key_col:val_col, 2, FALSE), "")
+                        formula = f'=IFERROR(VLOOKUP($B$4&"|"&{i+1},${key_col}$1:${val_col}${last_row},2,FALSE),"")'
+                        cell = lookup_ws.cell(row=result_row, column=matrix_idx, value=formula)
                     else:
-                        formula = '""'
+                        cell = lookup_ws.cell(row=result_row, column=matrix_idx, value="")
                     
-                    cell = lookup_ws.cell(row=result_row, column=matrix_idx + 2, value=formula)
                     cell.border = cell_border
                     cell.alignment = Alignment(vertical="center")
             
@@ -610,7 +639,7 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
             lookup_ws.cell(row=inst_row, column=1).font = Font(bold=True, color="64748B")
             lookup_ws.cell(row=inst_row + 1, column=1, value="1. Selecciona un usuario del menú desplegable en la celda amarilla (B4)")
             lookup_ws.cell(row=inst_row + 1, column=1).font = Font(color="64748B")
-            lookup_ws.cell(row=inst_row + 2, column=1, value="2. Los permisos de cada matriz se mostrarán automáticamente en columnas separadas")
+            lookup_ws.cell(row=inst_row + 2, column=1, value="2. Los permisos de cada matriz aparecerán automáticamente en columnas separadas")
             lookup_ws.cell(row=inst_row + 2, column=1).font = Font(color="64748B")
             lookup_ws.cell(row=inst_row + 3, column=1, value="3. Cada permiso aparece en una fila diferente para facilitar la lectura")
             lookup_ws.cell(row=inst_row + 3, column=1).font = Font(color="64748B")

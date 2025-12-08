@@ -753,6 +753,66 @@
     
     @media (max-width: 600px) { .filter-config { grid-template-columns: 1fr; } }
     
+    .filter-mapping-item {
+      display: grid;
+      grid-template-columns: 1fr 1fr 120px;
+      gap: 12px;
+      align-items: center;
+      padding: 12px 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 8px;
+    }
+    
+    .filter-mapping-item .source-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    
+    .filter-mapping-item select {
+      padding: 8px 12px;
+      font-size: 13px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-input);
+      color: var(--text);
+      cursor: pointer;
+    }
+    
+    .filter-mapping-item .match-count {
+      text-align: right;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 100px;
+    }
+    
+    .filter-mapping-item .match-count.good {
+      background: var(--success-light);
+      color: var(--success);
+    }
+    
+    .filter-mapping-item .match-count.warning {
+      background: var(--warning-light);
+      color: var(--warning);
+    }
+    
+    .filter-mapping-item .match-count.error {
+      background: #fef2f2;
+      color: var(--error);
+    }
+    
+    @media (max-width: 600px) {
+      .filter-mapping-item {
+        grid-template-columns: 1fr;
+      }
+    }
+    
     .filter-badge {
       display: inline-flex;
       align-items: center;
@@ -988,6 +1048,17 @@
           
           <div class="filter-badge" id="filterPreview">
             <span>✓</span> <span id="filterValueCount">0</span> valores únicos se usarán como filtro
+          </div>
+          
+          <!-- Source column mapping section -->
+          <div class="filter-mapping-section" id="filterMappingSection" style="display: none;">
+            <h4 style="margin-top: 24px; margin-bottom: 12px; font-size: 14px; font-weight: 600; color: var(--text);">
+              <span style="margin-right: 6px;">🔗</span>Mapear columnas para filtrar
+            </h4>
+            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">
+              Selecciona qué columna de cada archivo debe coincidir con los valores del filtro
+            </p>
+            <div id="filterMappingContainer"></div>
           </div>
         </div>
         
@@ -1483,26 +1554,165 @@
       const column = filterColumnSelect.value;
       const sheet = filterFileData.sheets[sheetIdx];
       
-      // Get unique values from the column
+      // Get unique values from the column (lowercase for matching)
       const values = new Set();
+      const valuesLower = new Set();
       sheet.data.forEach(row => {
         const val = String(row[column] || '').trim();
-        if (val) values.add(val);
+        if (val) {
+          values.add(val);
+          valuesLower.add(val.toLowerCase());
+        }
       });
       
       filterConfig.sheet = sheetIdx;
       filterConfig.column = column;
       filterConfig.values = Array.from(values);
+      filterConfig.valuesLower = Array.from(valuesLower);
       filterConfig.enabled = true;
       
       document.getElementById('filterValueCount').textContent = values.size;
       document.getElementById('filterPreview').classList.remove('hidden');
+      
+      // Render source mappings
+      renderFilterMappings();
+    }
+    
+    function renderFilterMappings() {
+      const container = document.getElementById('filterMappingContainer');
+      const section = document.getElementById('filterMappingSection');
+      
+      // Check if we have files loaded
+      if (!fileData || fileData.length === 0) {
+        section.style.display = 'none';
+        return;
+      }
+      
+      // Get all selected sources from selectedTabs
+      const sources = [];
+      Object.keys(selectedTabs).forEach(key => {
+        if (!selectedTabs[key]) return;
+        const [fileIdx, ...rest] = key.split('-');
+        const sheetName = rest.join('-');
+        const file = fileData[parseInt(fileIdx)];
+        if (!file) return;
+        const sheet = file.sheets.find(s => s.name === sheetName);
+        if (sheet && sheet.headers && sheet.headers.length > 0) {
+          sources.push({
+            key: key,
+            fileIdx: parseInt(fileIdx),
+            sheetName: sheetName,
+            fileName: file.fileName,
+            headers: sheet.headers,
+            data: sheet.data || []
+          });
+        }
+      });
+      
+      // If no sources selected yet, show message
+      if (sources.length === 0) {
+        section.style.display = 'block';
+        container.innerHTML = `
+          <div style="padding: 16px; background: var(--warning-light); border-radius: var(--radius); color: var(--warning); font-size: 13px;">
+            ⚠️ No hay archivos de datos cargados. Asegúrate de haber cargado archivos en el Paso 1 y seleccionado hojas en el Paso 2.
+          </div>
+        `;
+        return;
+      }
+      
+      section.style.display = 'block';
+      
+      container.innerHTML = sources.map(source => {
+        const currentMapping = filterConfig.sourceMappings[source.key] || '';
+        const safeKey = source.key.replace(/[^a-zA-Z0-9]/g, '_');
+        const safeFileName = source.fileName.replace(/"/g, '&quot;');
+        const safeSheetName = source.sheetName.replace(/"/g, '&quot;');
+        
+        return `
+          <div class="filter-mapping-item">
+            <div class="source-name" title="${safeFileName} → ${safeSheetName}">
+              📄 ${source.fileName} → ${source.sheetName}
+            </div>
+            <select onchange="updateSourceMapping('${source.key}', this.value)">
+              <option value="">-- Seleccionar columna --</option>
+              ${source.headers.map(h => {
+                const safeH = String(h).replace(/"/g, '&quot;');
+                return `<option value="${safeH}" ${h === currentMapping ? 'selected' : ''}>${h}</option>`;
+              }).join('')}
+            </select>
+            <div class="match-count" id="matchCount-${safeKey}">
+              ${currentMapping ? calcMatchCount(source, currentMapping) : '-- / --'}
+            </div>
+          </div>
+        `;
+      }).join('');
+      
+      // Auto-select columns if not yet selected
+      sources.forEach(source => {
+        if (!filterConfig.sourceMappings[source.key]) {
+          // Try to auto-match column by name similarity
+          const filterCol = filterColumnSelect.value.toLowerCase();
+          const match = source.headers.find(h => String(h).toLowerCase() === filterCol);
+          if (match) {
+            filterConfig.sourceMappings[source.key] = match;
+            renderFilterMappings();
+          }
+        }
+      });
+    }
+    
+    function updateSourceMapping(sourceKey, column) {
+      filterConfig.sourceMappings[sourceKey] = column;
+      
+      // Find source and update match count
+      const safeKey = sourceKey.replace(/[^a-zA-Z0-9]/g, '_');
+      const countEl = document.getElementById(`matchCount-${safeKey}`);
+      
+      if (countEl && column) {
+        const [fileIdx, ...rest] = sourceKey.split('-');
+        const sheetName = rest.join('-');
+        const file = fileData[parseInt(fileIdx)];
+        const sheet = file.sheets.find(s => s.name === sheetName);
+        if (sheet) {
+          countEl.innerHTML = calcMatchCount({ data: sheet.data }, column);
+        }
+      } else if (countEl) {
+        countEl.innerHTML = '-- / --';
+        countEl.className = 'match-count';
+      }
+    }
+    
+    function calcMatchCount(source, column) {
+      if (!filterConfig.valuesLower || filterConfig.valuesLower.length === 0) {
+        return '-- / --';
+      }
+      
+      const filterSet = new Set(filterConfig.valuesLower);
+      let matches = 0;
+      let total = 0;
+      
+      source.data.forEach(row => {
+        const val = String(row[column] || '').trim().toLowerCase();
+        if (val) {
+          total++;
+          if (filterSet.has(val)) {
+            matches++;
+          }
+        }
+      });
+      
+      const percentage = total > 0 ? Math.round((matches / total) * 100) : 0;
+      let cssClass = 'good';
+      if (percentage < 50) cssClass = 'error';
+      else if (percentage < 80) cssClass = 'warning';
+      
+      return `<span class="match-count ${cssClass}">${matches} / ${total} filas (${percentage}%)</span>`;
     }
     
     function removeFilterFile() {
       filterFile = null;
       filterFileData = null;
-      filterConfig = { enabled: false, sheet: null, column: null, values: [] };
+      filterConfig = { enabled: false, sheet: null, column: null, values: [], sourceMappings: {} };
       
       filterDropZone.classList.remove('hidden');
       filterFileLoaded.classList.add('hidden');
@@ -1760,7 +1970,7 @@
       maxCompletedStep = 0;
       filterFile = null;
       filterFileData = null;
-      filterConfig = { enabled: false, sheet: null, column: null, values: [] };
+      filterConfig = { enabled: false, sheet: null, column: null, values: [], sourceMappings: {} };
       
       fileItems.innerHTML = '';
       fileList.classList.add('hidden');
