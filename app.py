@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Procesador de Matrices - Aplicación web para crear matrices de intersección desde archivos Excel/CSV.
-Ejecutar con: python app.py
+Matrix Processor - A web app for creating intersection matrices from Excel/CSV files.
+Run with: python app.py
 """
 
 import os
@@ -25,19 +25,16 @@ def check_dependencies():
             missing.append(pkg)
     
     if missing:
-        print(f"Instalando paquetes requeridos: {', '.join(missing)}")
+        print(f"Installing required packages: {', '.join(missing)}")
         import subprocess
         subprocess.check_call([sys.executable, '-m', 'pip', 'install'] + missing, 
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        print("¡Paquetes instalados exitosamente!")
+        print("Packages installed successfully!")
 
 check_dependencies()
 
 import pandas as pd
 from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
-from openpyxl.utils import get_column_letter
-from openpyxl.utils.dataframe import dataframe_to_rows
 
 # Store uploaded files and processing state
 app_state = {
@@ -106,7 +103,7 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
             app_state['filter_file'] = None
             self.send_json({'status': 'ok'})
         else:
-            self.send_json({'error': 'No encontrado'}, 404)
+            self.send_json({'error': 'Not found'}, 404)
     
     def handle_upload(self, content_length):
         """Handle file upload"""
@@ -145,12 +142,12 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                     file_info = self.process_file(filename, content)
                     app_state['file_data'].append(file_info)
                 except Exception as e:
-                    self.send_json({'error': f'Error al procesar {filename}: {str(e)}'}, 400)
+                    self.send_json({'error': f'Error processing {filename}: {str(e)}'}, 400)
                     return
             
             self.send_json({'status': 'ok', 'files': app_state['file_data']})
         else:
-            self.send_json({'error': 'Tipo de contenido inválido'}, 400)
+            self.send_json({'error': 'Invalid content type'}, 400)
     
     def process_file(self, filename, content):
         """Process an Excel or CSV file"""
@@ -163,10 +160,8 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
         try:
             if filename.endswith('.csv'):
                 df = pd.read_csv(BytesIO(content))
-                # Trim headers and data
-                df.columns = [str(col).strip() for col in df.columns]
                 headers = df.columns.tolist()
-                data = df.fillna('').astype(str).apply(lambda x: x.str.strip()).to_dict('records')
+                data = df.fillna('').astype(str).to_dict('records')
                 file_info['sheets'].append({
                     'name': 'Sheet1',
                     'headers': headers,
@@ -176,17 +171,15 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                 xlsx = pd.ExcelFile(BytesIO(content))
                 for sheet_name in xlsx.sheet_names:
                     df = pd.read_excel(xlsx, sheet_name=sheet_name)
-                    # Trim headers and data
-                    df.columns = [str(col).strip() for col in df.columns]
                     headers = df.columns.tolist()
-                    data = df.fillna('').astype(str).apply(lambda x: x.str.strip()).to_dict('records')
+                    data = df.fillna('').astype(str).to_dict('records')
                     file_info['sheets'].append({
                         'name': sheet_name,
                         'headers': headers,
                         'data': data
                     })
         except Exception as e:
-            raise Exception(f'Error al leer archivo: {str(e)}')
+            raise Exception(f'Failed to read file: {str(e)}')
         
         return file_info
     
@@ -219,12 +212,12 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                             self.send_json({'status': 'ok', 'file': file_info})
                             return
                         except Exception as e:
-                            self.send_json({'error': f'Error al procesar archivo de filtro: {str(e)}'}, 400)
+                            self.send_json({'error': f'Error processing filter file: {str(e)}'}, 400)
                             return
             
-            self.send_json({'error': 'No se encontró archivo'}, 400)
+            self.send_json({'error': 'No file found'}, 400)
         else:
-            self.send_json({'error': 'Tipo de contenido inválido'}, 400)
+            self.send_json({'error': 'Invalid content type'}, 400)
     
     def handle_process(self, content_length):
         """Return processed file data"""
@@ -239,8 +232,7 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
         filter_config = config.get('filterConfig')
         filter_values = None
         if filter_config and filter_config.get('enabled') and filter_config.get('values'):
-            # Case-insensitive filter values
-            filter_values = set(v.lower().strip() for v in filter_config['values'])
+            filter_values = set(filter_config['values'])
         
         try:
             matrices = self.compute_matrices(
@@ -254,20 +246,11 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
         except Exception as e:
             self.send_json({'error': str(e)}, 400)
     
-    def get_row_value(self, row, x_axis_columns):
-        """Get combined row value from multiple columns"""
-        parts = []
-        for col in x_axis_columns:
-            val = str(row.get(col, '')).strip()
-            if val:
-                parts.append(val)
-        return ' | '.join(parts) if parts else ''
-    
     def compute_matrices(self, file_data, selected_tabs, column_selections, matrix_config, filter_values=None):
-        """Compute intersection matrices with multi-column X axis support
+        """Compute intersection matrices
         
         Args:
-            filter_values: Optional set of lowercase values to filter X axis (rows) by
+            filter_values: Optional set of values to filter X axis (rows) by
         """
         matrices = []
         
@@ -276,6 +259,11 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                 # Merge all sources into one matrix
                 y_values = set()
                 x_values = set()
+                secondary_x_values = set()
+                has_secondary_x = any(
+                    column_selections.get(f"{s['fileIndex']}-{s['sheetName']}", {}).get('secondaryXAxis')
+                    for s in config['sources']
+                )
                 
                 # Collect unique values
                 for source in config['sources']:
@@ -290,66 +278,96 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                     
                     sel = column_selections.get(key, {})
                     y_col = sel.get('yAxis')
-                    x_cols = sel.get('xAxisMultiple', [])
-                    
-                    # Fallback to single xAxis if xAxisMultiple not set
-                    if not x_cols and sel.get('xAxis'):
-                        x_cols = [sel.get('xAxis')]
+                    x_col = sel.get('xAxis')
+                    sec_x_col = sel.get('secondaryXAxis')
                     
                     for row in sheet['data']:
                         y_val = str(row.get(y_col, '')).strip()
-                        x_val = self.get_row_value(row, x_cols)
+                        x_val = str(row.get(x_col, '')).strip()
+                        sec_x_val = str(row.get(sec_x_col, '')).strip() if sec_x_col else None
                         
                         if y_val:
                             y_values.add(y_val)
                         if x_val:
-                            # Apply filter if present - case-insensitive
-                            if filter_values is None:
+                            # Apply filter if present - only keep x values in the filter list
+                            if filter_values is None or x_val in filter_values:
                                 x_values.add(x_val)
-                            else:
-                                # Check if any part of the row value matches filter
-                                x_val_lower = x_val.lower()
-                                if any(fv in x_val_lower or x_val_lower in fv for fv in filter_values):
-                                    x_values.add(x_val)
+                        if sec_x_val:
+                            secondary_x_values.add(sec_x_val)
                 
                 sorted_y = sorted(y_values)
                 sorted_x = sorted(x_values)
+                sorted_sec_x = sorted(secondary_x_values) if has_secondary_x else None
                 
-                matrix_data = [[0] * len(sorted_x) for _ in range(len(sorted_y))]
-                
-                for source in config['sources']:
-                    file_idx = source['fileIndex']
-                    sheet_name = source['sheetName']
-                    key = f"{file_idx}-{sheet_name}"
-                    
-                    file = file_data[file_idx]
-                    sheet = next((s for s in file['sheets'] if s['name'] == sheet_name), None)
-                    if not sheet:
-                        continue
-                    
-                    sel = column_selections.get(key, {})
-                    y_col = sel.get('yAxis')
-                    x_cols = sel.get('xAxisMultiple', [])
-                    
-                    if not x_cols and sel.get('xAxis'):
-                        x_cols = [sel.get('xAxis')]
-                    
-                    for row in sheet['data']:
-                        y_val = str(row.get(y_col, '')).strip()
-                        x_val = self.get_row_value(row, x_cols)
+                if sorted_sec_x:
+                    for sec_x in sorted_sec_x:
+                        matrix_data = [[0] * len(sorted_x) for _ in range(len(sorted_y))]
                         
-                        if y_val and x_val:
-                            y_idx = sorted_y.index(y_val) if y_val in sorted_y else -1
-                            x_idx = sorted_x.index(x_val) if x_val in sorted_x else -1
-                            if y_idx >= 0 and x_idx >= 0:
-                                matrix_data[y_idx][x_idx] = 1
-                
-                matrices.append({
-                    'name': config['name'],
-                    'yAxis': sorted_y,
-                    'xAxis': sorted_x,
-                    'data': matrix_data
-                })
+                        for source in config['sources']:
+                            file_idx = source['fileIndex']
+                            sheet_name = source['sheetName']
+                            key = f"{file_idx}-{sheet_name}"
+                            
+                            file = file_data[file_idx]
+                            sheet = next((s for s in file['sheets'] if s['name'] == sheet_name), None)
+                            if not sheet:
+                                continue
+                            
+                            sel = column_selections.get(key, {})
+                            y_col = sel.get('yAxis')
+                            x_col = sel.get('xAxis')
+                            sec_x_col = sel.get('secondaryXAxis')
+                            
+                            for row in sheet['data']:
+                                y_val = str(row.get(y_col, '')).strip()
+                                x_val = str(row.get(x_col, '')).strip()
+                                sec_x_val = str(row.get(sec_x_col, '')).strip() if sec_x_col else None
+                                
+                                if y_val and x_val and sec_x_val == sec_x:
+                                    y_idx = sorted_y.index(y_val) if y_val in sorted_y else -1
+                                    x_idx = sorted_x.index(x_val) if x_val in sorted_x else -1
+                                    if y_idx >= 0 and x_idx >= 0:
+                                        matrix_data[y_idx][x_idx] = 1
+                        
+                        matrices.append({
+                            'name': f"{config['name']} - {sec_x}",
+                            'yAxis': sorted_y,
+                            'xAxis': sorted_x,
+                            'data': matrix_data
+                        })
+                else:
+                    matrix_data = [[0] * len(sorted_x) for _ in range(len(sorted_y))]
+                    
+                    for source in config['sources']:
+                        file_idx = source['fileIndex']
+                        sheet_name = source['sheetName']
+                        key = f"{file_idx}-{sheet_name}"
+                        
+                        file = file_data[file_idx]
+                        sheet = next((s for s in file['sheets'] if s['name'] == sheet_name), None)
+                        if not sheet:
+                            continue
+                        
+                        sel = column_selections.get(key, {})
+                        y_col = sel.get('yAxis')
+                        x_col = sel.get('xAxis')
+                        
+                        for row in sheet['data']:
+                            y_val = str(row.get(y_col, '')).strip()
+                            x_val = str(row.get(x_col, '')).strip()
+                            
+                            if y_val and x_val:
+                                y_idx = sorted_y.index(y_val) if y_val in sorted_y else -1
+                                x_idx = sorted_x.index(x_val) if x_val in sorted_x else -1
+                                if y_idx >= 0 and x_idx >= 0:
+                                    matrix_data[y_idx][x_idx] = 1
+                    
+                    matrices.append({
+                        'name': config['name'],
+                        'yAxis': sorted_y,
+                        'xAxis': sorted_x,
+                        'data': matrix_data
+                    })
             else:
                 # Create independent matrix for each source
                 for source in config['sources']:
@@ -364,55 +382,76 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                     
                     sel = column_selections.get(key, {})
                     y_col = sel.get('yAxis')
-                    x_cols = sel.get('xAxisMultiple', [])
-                    
-                    if not x_cols and sel.get('xAxis'):
-                        x_cols = [sel.get('xAxis')]
+                    x_col = sel.get('xAxis')
+                    sec_x_col = sel.get('secondaryXAxis')
                     
                     y_values = set()
                     x_values = set()
+                    secondary_x_values = set() if sec_x_col else None
                     
                     for row in sheet['data']:
                         y_val = str(row.get(y_col, '')).strip()
-                        x_val = self.get_row_value(row, x_cols)
+                        x_val = str(row.get(x_col, '')).strip()
+                        sec_x_val = str(row.get(sec_x_col, '')).strip() if sec_x_col else None
                         
                         if y_val:
                             y_values.add(y_val)
                         if x_val:
-                            # Apply filter if present - case-insensitive
-                            if filter_values is None:
+                            # Apply filter if present - only keep x values in the filter list
+                            if filter_values is None or x_val in filter_values:
                                 x_values.add(x_val)
-                            else:
-                                x_val_lower = x_val.lower()
-                                if any(fv in x_val_lower or x_val_lower in fv for fv in filter_values):
-                                    x_values.add(x_val)
+                        if sec_x_val and secondary_x_values is not None:
+                            secondary_x_values.add(sec_x_val)
                     
                     sorted_y = sorted(y_values)
                     sorted_x = sorted(x_values)
+                    sorted_sec_x = sorted(secondary_x_values) if secondary_x_values else None
                     
-                    matrix_data = [[0] * len(sorted_x) for _ in range(len(sorted_y))]
-                    
-                    for row in sheet['data']:
-                        y_val = str(row.get(y_col, '')).strip()
-                        x_val = self.get_row_value(row, x_cols)
+                    if sorted_sec_x:
+                        for sec_x in sorted_sec_x:
+                            matrix_data = [[0] * len(sorted_x) for _ in range(len(sorted_y))]
+                            
+                            for row in sheet['data']:
+                                y_val = str(row.get(y_col, '')).strip()
+                                x_val = str(row.get(x_col, '')).strip()
+                                sec_x_val = str(row.get(sec_x_col, '')).strip() if sec_x_col else None
+                                
+                                if y_val and x_val and sec_x_val == sec_x:
+                                    y_idx = sorted_y.index(y_val) if y_val in sorted_y else -1
+                                    x_idx = sorted_x.index(x_val) if x_val in sorted_x else -1
+                                    if y_idx >= 0 and x_idx >= 0:
+                                        matrix_data[y_idx][x_idx] = 1
+                            
+                            matrices.append({
+                                'name': f"{source['fileName'].rsplit('.', 1)[0]} - {sheet_name} - {sec_x}",
+                                'yAxis': sorted_y,
+                                'xAxis': sorted_x,
+                                'data': matrix_data
+                            })
+                    else:
+                        matrix_data = [[0] * len(sorted_x) for _ in range(len(sorted_y))]
                         
-                        if y_val and x_val:
-                            y_idx = sorted_y.index(y_val) if y_val in sorted_y else -1
-                            x_idx = sorted_x.index(x_val) if x_val in sorted_x else -1
-                            if y_idx >= 0 and x_idx >= 0:
-                                matrix_data[y_idx][x_idx] = 1
-                    
-                    matrices.append({
-                        'name': config['name'],
-                        'yAxis': sorted_y,
-                        'xAxis': sorted_x,
-                        'data': matrix_data
-                    })
+                        for row in sheet['data']:
+                            y_val = str(row.get(y_col, '')).strip()
+                            x_val = str(row.get(x_col, '')).strip()
+                            
+                            if y_val and x_val:
+                                y_idx = sorted_y.index(y_val) if y_val in sorted_y else -1
+                                x_idx = sorted_x.index(x_val) if x_val in sorted_x else -1
+                                if y_idx >= 0 and x_idx >= 0:
+                                    matrix_data[y_idx][x_idx] = 1
+                        
+                        matrices.append({
+                            'name': f"{source['fileName'].rsplit('.', 1)[0]} - {sheet_name}",
+                            'yAxis': sorted_y,
+                            'xAxis': sorted_x,
+                            'data': matrix_data
+                        })
         
         return matrices
     
     def handle_export(self, content_length):
-        """Export matrices to Excel with Lookup sheet"""
+        """Export matrices to Excel"""
         body = self.rfile.read(content_length)
         data = json.loads(body.decode('utf-8'))
         matrices = data.get('matrices', [])
@@ -421,189 +460,6 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
             wb = Workbook()
             wb.remove(wb.active)
             
-            # Styles
-            header_font = Font(bold=True, color="FFFFFF")
-            header_fill = PatternFill(start_color="2563EB", end_color="2563EB", fill_type="solid")
-            header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
-            cell_border = Border(
-                left=Side(style='thin', color='E2E8F0'),
-                right=Side(style='thin', color='E2E8F0'),
-                top=Side(style='thin', color='E2E8F0'),
-                bottom=Side(style='thin', color='E2E8F0')
-            )
-            one_fill = PatternFill(start_color="DCFCE7", end_color="DCFCE7", fill_type="solid")
-            
-            # ========== LOOKUP SHEET (CONSULTA) ==========
-            lookup_ws = wb.create_sheet(title="Consulta")
-            
-            # Collect all unique row values and their matches per matrix
-            all_row_values = set()
-            row_to_cols = {}  # {row_val: {matrix_name: [col1, col2, ...]}}
-            matrix_names = [m['name'] for m in matrices]
-            
-            for matrix in matrices:
-                matrix_name = matrix['name']
-                rows = matrix['xAxis']  # rows (X axis)
-                cols = matrix['yAxis']  # columns (Y axis)
-                matrix_data = matrix['data']
-                
-                for row_idx, row_val in enumerate(rows):
-                    all_row_values.add(row_val)
-                    if row_val not in row_to_cols:
-                        row_to_cols[row_val] = {}
-                    
-                    # Find all columns with value 1 for this row
-                    matching_cols = []
-                    if row_idx < len(matrix_data):
-                        for col_idx, val in enumerate(matrix_data[row_idx]):
-                            if val == 1 and col_idx < len(cols):
-                                matching_cols.append(cols[col_idx])
-                    
-                    if matching_cols:
-                        if matrix_name not in row_to_cols[row_val]:
-                            row_to_cols[row_val][matrix_name] = []
-                        row_to_cols[row_val][matrix_name].extend(matching_cols)
-            
-            sorted_row_values = sorted(all_row_values)
-            
-            # Title
-            lookup_ws.merge_cells('A1:' + get_column_letter(len(matrix_names) + 1) + '1')
-            title_cell = lookup_ws['A1']
-            title_cell.value = "Consulta de Permisos por Usuario"
-            title_cell.font = Font(bold=True, size=16, color="1E293B")
-            title_cell.alignment = Alignment(horizontal="center", vertical="center")
-            lookup_ws.row_dimensions[1].height = 30
-            
-            # Subtitle
-            lookup_ws.merge_cells('A2:' + get_column_letter(len(matrix_names) + 1) + '2')
-            subtitle_cell = lookup_ws['A2']
-            subtitle_cell.value = "Selecciona un valor de fila del menú desplegable para ver sus permisos en todas las matrices"
-            subtitle_cell.font = Font(size=11, color="64748B")
-            subtitle_cell.alignment = Alignment(horizontal="center", vertical="center")
-            lookup_ws.row_dimensions[2].height = 25
-            
-            # Dropdown label
-            lookup_ws['A4'] = "Seleccionar Usuario:"
-            lookup_ws['A4'].font = Font(bold=True)
-            lookup_ws['A4'].alignment = Alignment(horizontal="right", vertical="center")
-            
-            # Dropdown cell with data validation
-            from openpyxl.worksheet.datavalidation import DataValidation
-            
-            # Create dropdown in B4
-            if sorted_row_values:
-                # Store values in a hidden area for the dropdown
-                for idx, val in enumerate(sorted_row_values):
-                    lookup_ws.cell(row=idx + 1, column=20, value=val)  # Column T (hidden)
-                
-                # Create data validation
-                dv = DataValidation(
-                    type="list",
-                    formula1=f"$T$1:$T${len(sorted_row_values)}",
-                    allow_blank=True
-                )
-                dv.error = "Por favor selecciona un valor de la lista"
-                dv.errorTitle = "Valor inválido"
-                dv.prompt = "Selecciona un usuario"
-                dv.promptTitle = "Lista de usuarios"
-                lookup_ws.add_data_validation(dv)
-                dv.add(lookup_ws['B4'])
-            
-            lookup_ws['B4'].fill = PatternFill(start_color="FEF3C7", end_color="FEF3C7", fill_type="solid")
-            lookup_ws['B4'].border = Border(
-                left=Side(style='medium', color='F59E0B'),
-                right=Side(style='medium', color='F59E0B'),
-                top=Side(style='medium', color='F59E0B'),
-                bottom=Side(style='medium', color='F59E0B')
-            )
-            lookup_ws.column_dimensions['B'].width = 40
-            
-            # Headers for results - one column per matrix
-            lookup_ws['A6'] = "Matriz"
-            lookup_ws['A6'].font = header_font
-            lookup_ws['A6'].fill = header_fill
-            lookup_ws['A6'].alignment = header_align
-            lookup_ws['A6'].border = cell_border
-            
-            lookup_ws['B6'] = "Permisos / Coincidencias"
-            lookup_ws['B6'].font = header_font
-            lookup_ws['B6'].fill = header_fill
-            lookup_ws['B6'].alignment = header_align
-            lookup_ws['B6'].border = cell_border
-            
-            lookup_ws.column_dimensions['A'].width = 35
-            lookup_ws.column_dimensions['B'].width = 60
-            
-            # Build reference data for VLOOKUP - one row per (row_val, matrix, column) combination
-            # This allows each match to be on its own row
-            ref_data = []  # [(row_val, matrix_name, col_value), ...]
-            
-            for row_val in sorted_row_values:
-                for matrix_name in matrix_names:
-                    if row_val in row_to_cols and matrix_name in row_to_cols[row_val]:
-                        cols_list = sorted(set(row_to_cols[row_val][matrix_name]))
-                        for col_val in cols_list:
-                            ref_data.append((row_val, matrix_name, col_val))
-            
-            # Write reference data to hidden columns (columns U, V, W)
-            # U = row_val, V = matrix_name, W = col_value
-            for idx, (row_val, matrix_name, col_val) in enumerate(ref_data):
-                lookup_ws.cell(row=idx + 1, column=21, value=row_val)  # Column U
-                lookup_ws.cell(row=idx + 1, column=22, value=matrix_name)  # Column V
-                lookup_ws.cell(row=idx + 1, column=23, value=col_val)  # Column W
-            
-            # Hide reference columns
-            lookup_ws.column_dimensions['T'].hidden = True
-            lookup_ws.column_dimensions['U'].hidden = True
-            lookup_ws.column_dimensions['V'].hidden = True
-            lookup_ws.column_dimensions['W'].hidden = True
-            
-            # Create result rows - one section per matrix with expandable results
-            current_row = 7
-            
-            for matrix_name in matrix_names:
-                # Matrix name header
-                lookup_ws.cell(row=current_row, column=1, value=matrix_name)
-                lookup_ws.cell(row=current_row, column=1).font = Font(bold=True, color="2563EB")
-                lookup_ws.cell(row=current_row, column=1).border = cell_border
-                
-                # Find max matches for any row value in this matrix
-                max_matches = 0
-                for row_val in sorted_row_values:
-                    if row_val in row_to_cols and matrix_name in row_to_cols[row_val]:
-                        max_matches = max(max_matches, len(row_to_cols[row_val][matrix_name]))
-                
-                # Create formula rows for this matrix (up to max_matches or at least 10)
-                num_rows = max(max_matches, 10)
-                
-                for i in range(num_rows):
-                    result_row = current_row + i
-                    if i > 0:
-                        lookup_ws.cell(row=result_row, column=1, value="")
-                        lookup_ws.cell(row=result_row, column=1).border = cell_border
-                    
-                    # Formula to find nth match for selected user in this matrix
-                    # Uses SMALL and IF array formula pattern
-                    formula = f'=IFERROR(INDEX($W:$W,SMALL(IF(($U:$U=$B$4)*($V:$V="{matrix_name}"),ROW($U:$U)),{i+1}))," ")'
-                    
-                    result_cell = lookup_ws.cell(row=result_row, column=2, value=formula)
-                    result_cell.border = cell_border
-                    result_cell.alignment = Alignment(vertical="center")
-                
-                current_row += num_rows + 1  # Add spacing between matrices
-            
-            # Add instructions at the bottom
-            instruction_row = current_row + 2
-            lookup_ws.cell(row=instruction_row, column=1, value="Instrucciones:")
-            lookup_ws.cell(row=instruction_row, column=1).font = Font(bold=True, color="64748B")
-            lookup_ws.cell(row=instruction_row + 1, column=1, value="1. Selecciona un usuario del menú desplegable en la celda amarilla (B4)")
-            lookup_ws.cell(row=instruction_row + 1, column=1).font = Font(color="64748B")
-            lookup_ws.cell(row=instruction_row + 2, column=1, value="2. Los permisos de cada matriz se mostrarán automáticamente abajo")
-            lookup_ws.cell(row=instruction_row + 2, column=1).font = Font(color="64748B")
-            lookup_ws.cell(row=instruction_row + 3, column=1, value="3. Cada permiso aparece en una fila separada para facilitar la lectura")
-            lookup_ws.cell(row=instruction_row + 3, column=1).font = Font(color="64748B")
-            
-            # ========== MATRIX SHEETS ==========
             for matrix in matrices:
                 # Sanitize sheet name (max 31 chars, no special chars)
                 sheet_name = matrix['name'][:31]
@@ -614,40 +470,14 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                 
                 # Header row
                 ws.cell(row=1, column=1, value='')
-                ws.cell(row=1, column=1).fill = header_fill
-                ws.cell(row=1, column=1).border = cell_border
-                
-                for col_idx, y_val in enumerate(matrix['yAxis'], start=2):
-                    cell = ws.cell(row=1, column=col_idx, value=y_val)
-                    cell.font = header_font
-                    cell.fill = header_fill
-                    cell.alignment = header_align
-                    cell.border = cell_border
+                for col_idx, x_val in enumerate(matrix['xAxis'], start=2):
+                    ws.cell(row=1, column=col_idx, value=x_val)
                 
                 # Data rows
-                for row_idx, x_val in enumerate(matrix['xAxis'], start=2):
-                    # Row header
-                    row_header = ws.cell(row=row_idx, column=1, value=x_val)
-                    row_header.font = Font(bold=True)
-                    row_header.fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
-                    row_header.border = cell_border
-                    
-                    # Data cells
+                for row_idx, y_val in enumerate(matrix['yAxis'], start=2):
+                    ws.cell(row=row_idx, column=1, value=y_val)
                     for col_idx, val in enumerate(matrix['data'][row_idx - 2], start=2):
-                        cell = ws.cell(row=row_idx, column=col_idx, value=val if val == 1 else '')
-                        cell.border = cell_border
-                        cell.alignment = Alignment(horizontal="center")
-                        if val == 1:
-                            cell.fill = one_fill
-                            cell.font = Font(bold=True, color="16A34A")
-                
-                # Adjust column widths
-                ws.column_dimensions['A'].width = 30
-                for col_idx in range(2, len(matrix['yAxis']) + 2):
-                    ws.column_dimensions[get_column_letter(col_idx)].width = 15
-                
-                # Freeze panes
-                ws.freeze_panes = 'B2'
+                        ws.cell(row=row_idx, column=col_idx, value=val)
             
             # Save to bytes
             output = BytesIO()
@@ -666,12 +496,12 @@ def run_server(port=8080):
     """Start the web server"""
     server = HTTPServer(('127.0.0.1', port), MatrixProcessorHandler)
     print(f"\n{'='*50}")
-    print(f"  PROCESADOR DE MATRICES")
+    print(f"  MATRIX PROCESSOR")
     print(f"{'='*50}")
-    print(f"\n  Servidor ejecutándose en: http://localhost:{port}")
-    print(f"\n  Abriendo navegador...")
-    print(f"\n  Mantén esta ventana abierta mientras usas la app.")
-    print(f"  Presiona Ctrl+C para detener.\n")
+    print(f"\n  Server running at: http://localhost:{port}")
+    print(f"\n  Opening browser...")
+    print(f"\n  Keep this window open while using the app.")
+    print(f"  Press Ctrl+C to stop.\n")
     print(f"{'='*50}\n")
     
     # Open browser after a short delay
@@ -680,7 +510,7 @@ def run_server(port=8080):
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\nServidor detenido.")
+        print("\nServer stopped.")
         server.shutdown()
 
 
