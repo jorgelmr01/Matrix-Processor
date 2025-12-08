@@ -78,6 +78,13 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         self.end_headers()
     
+    def end_headers(self):
+        # Add no-cache headers to prevent browser caching issues
+        self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+        self.send_header('Pragma', 'no-cache')
+        self.send_header('Expires', '0')
+        super().end_headers()
+    
     def do_GET(self):
         if self.path == '/':
             self.path = '/index.html'
