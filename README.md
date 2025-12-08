@@ -1,56 +1,82 @@
-# Matrix Processor
+# 📊 Procesador de Matrices
 
-A web application to process Excel/CSV files and create intersection matrices.
+Aplicación web para crear matrices de intersección desde archivos Excel y CSV.
 
-## 🚀 Quick Start
+## Requisitos
 
-**Double-click `START.bat`** to launch the application.
+- **Python 3.7+** (descargar desde [python.org](https://python.org/))
 
-**Requirements:** Python 3.6+ (usually pre-installed on most systems)
+## Instalación
 
-The app will automatically install required packages (`pandas`, `openpyxl`) on first run.
+1. Descarga o clona este repositorio
+2. Asegúrate de tener Python instalado
 
----
+## Uso
 
-## Features
+### Opción 1: Doble clic (recomendado)
+Simplemente haz **doble clic en `START.bat`**. La aplicación:
+- Instalará automáticamente las dependencias necesarias (pandas, openpyxl)
+- Abrirá tu navegador en `http://localhost:8080`
 
-1. **Multi-file Upload** - Load Excel (.xlsx, .xls) or CSV files
-2. **Tab Selection** - Choose which sheets to process
-3. **Column Selection** - Select Y axis, X axis, and optional secondary X axis
-4. **Matrix Configuration** - Merge matrices or keep them independent
-5. **Matrix Computation** - Creates intersection matrices (marks intersections with 1)
-6. **Excel Export** - Exports results to a new Excel file
-
----
-
-## How to Use
-
-1. Double-click `START.bat`
-2. Upload your Excel/CSV files
-3. Select the tabs you want to process
-4. Choose columns for Y axis, X axis (and optionally secondary X axis)
-5. Configure how matrices should be created (merged or independent)
-6. Compute and export to Excel
-
----
-
-## Manual Start
-
-If the batch file doesn't work, open a terminal and run:
-
+### Opción 2: Línea de comandos
 ```bash
 python app.py
 ```
 
----
+## Funcionalidades
 
-## Troubleshooting
+### Paso 1: Cargar Archivos
+- Arrastra y suelta archivos Excel (.xlsx, .xls) o CSV
+- Carga múltiples archivos a la vez
 
-**"Python is not installed"** - Download from https://python.org/
+### Paso 2: Seleccionar Hojas
+- Elige qué hojas de cada archivo procesar
+- Las hojas se auto-seleccionan para archivos CSV
 
-**App doesn't open in browser** - Manually open http://localhost:8080
+### Paso 3: Definir Ejes
+- **Eje X (Filas)**: Selecciona múltiples columnas que formarán las filas de la matriz
+- **Eje Y (Columnas)**: Selecciona la columna que formará las columnas de la matriz
+- Usa el botón "Aplicar selección a todos" para copiar la configuración a archivos con columnas similares
+- Reordena las columnas de filas usando los botones ↑ ↓
 
-**Package installation fails** - Run manually:
-```bash
-pip install pandas openpyxl
+### Paso 4: Filtrar (Opcional)
+- Carga un archivo índice para filtrar las filas
+- Útil para mantener solo empleados activos, por ejemplo
+
+### Paso 5: Configurar Matrices
+- Nombra cada matriz
+- Combina múltiples fuentes en una sola matriz si es necesario
+
+### Paso 6: Exportar
+- Descarga un archivo Excel con:
+  - **Hoja "Consulta"**: Búsqueda interactiva de permisos por usuario
+  - **Hojas de matrices**: Una hoja por cada matriz generada
+
+## Estructura de Archivos
+
 ```
+Matriz/
+├── app.py          # Servidor Python (backend)
+├── index.html      # Interfaz web (frontend)
+├── START.bat       # Ejecutable para Windows
+├── README.md       # Este archivo
+└── .gitignore      # Archivos ignorados por git
+```
+
+## Solución de Problemas
+
+### La aplicación no abre
+1. Verifica que Python esté instalado: `python --version`
+2. Instala Python desde [python.org](https://python.org/)
+
+### El navegador muestra una versión antigua
+1. Cierra todas las pestañas de `localhost:8080`
+2. Presiona `Ctrl+Shift+R` para forzar recarga sin caché
+
+### Error al procesar archivos
+1. Verifica que los archivos no estén corruptos
+2. Asegúrate de que las columnas seleccionadas existan en los datos
+
+## Licencia
+
+MIT License

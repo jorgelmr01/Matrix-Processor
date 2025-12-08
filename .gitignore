@@ -6,18 +6,29 @@ __pycache__/
 .Python
 env/
 venv/
-.venv/
+.env
+
+# Node.js (legacy - no longer used)
+node_modules/
+.vite/
+package.json
+package-lock.json
+vite.config.js
 
 # IDE
-.vscode/
 .idea/
+.vscode/
 *.swp
 *.swo
+
+# Logs
+*.log
+matrix_processor_debug.log
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Temp
+# Temporary files
 *.tmp
 *.temp
