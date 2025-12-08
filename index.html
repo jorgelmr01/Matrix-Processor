@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Matrix Processor</title>
+  <title>Procesador de Matrices</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -46,6 +46,7 @@
       padding: 32px 24px;
     }
     
+    /* Header */
     .header {
       text-align: center;
       margin-bottom: 32px;
@@ -63,6 +64,7 @@
       font-size: 15px;
     }
     
+    /* Progress */
     .progress {
       display: flex;
       justify-content: center;
@@ -83,6 +85,11 @@
       font-size: 12px;
       font-weight: 500;
       transition: all 0.2s;
+      cursor: pointer;
+    }
+    
+    .progress .step:hover {
+      border-color: var(--text-muted);
     }
     
     .progress .step .num {
@@ -112,17 +119,6 @@
       background: var(--success-light);
       border-color: var(--success);
       color: var(--success);
-      cursor: pointer;
-      transition: all 0.15s ease;
-    }
-    
-    .progress .step.completed:hover {
-      background: var(--success);
-      color: white;
-    }
-    
-    .progress .step.completed:hover .num {
-      background: rgba(255,255,255,0.3);
     }
     
     .progress .step.completed .num {
@@ -130,6 +126,7 @@
       color: white;
     }
     
+    /* Card */
     .card {
       background: var(--bg-card);
       border: 1px solid var(--border);
@@ -153,6 +150,7 @@
       font-size: 14px;
     }
     
+    /* Buttons */
     .btn-group {
       display: flex;
       gap: 12px;
@@ -212,6 +210,12 @@
       box-shadow: var(--shadow-lg);
     }
     
+    .btn-small {
+      padding: 8px 14px;
+      font-size: 13px;
+    }
+    
+    /* Drop Zone */
     .drop-zone {
       border: 2px dashed var(--border);
       border-radius: var(--radius-lg);
@@ -251,7 +255,9 @@
     .drop-zone-icon svg { color: var(--accent); }
     .drop-zone h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
     .drop-zone p { color: var(--text-secondary); font-size: 14px; }
+    .drop-zone .hint { font-size: 13px; color: var(--text-muted); margin-top: 8px; }
     
+    /* File List */
     .file-list { margin-top: 24px; }
     .file-list-header {
       display: flex;
@@ -323,6 +329,7 @@
     
     .remove-btn:hover { background: #fef2f2; color: var(--error); }
     
+    /* Section Card */
     .section-card {
       background: var(--bg);
       border: 1px solid var(--border);
@@ -355,6 +362,7 @@
     
     .section-body { padding: 16px; }
     
+    /* Tabs Grid */
     .tabs-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -379,51 +387,28 @@
     .tab-name { flex: 1; font-weight: 500; font-size: 14px; }
     .tab-info { font-size: 12px; color: var(--text-muted); background: var(--bg); padding: 2px 8px; border-radius: 4px; }
     
-    /* Column Selection */
-    .axis-section {
-      margin-bottom: 20px;
+    /* Column Selectors */
+    .column-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
     }
     
-    .axis-section:last-child {
-      margin-bottom: 0;
-    }
+    @media (max-width: 700px) { .column-grid { grid-template-columns: 1fr; } }
     
-    .axis-label {
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    
+    .form-group label {
       font-weight: 600;
-      font-size: 13px;
       color: var(--text);
-      margin-bottom: 10px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    
-    .axis-label .required { color: var(--error); }
-    .axis-label .hint { font-weight: 400; color: var(--text-muted); font-size: 12px; }
-    
-    .column-chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-    
-    .column-chip {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 8px 12px;
-      background: var(--bg-card);
-      border: 2px solid var(--border);
-      border-radius: var(--radius);
-      cursor: pointer;
-      transition: all 0.15s;
       font-size: 13px;
-      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 4px;
     }
     
-    .column-chip:hover { border-color: var(--text-muted); }
-    .column-chip.selected { border-color: var(--accent); background: var(--accent-light); color: var(--accent); }
-    .column-chip input { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
+    .form-group label .required { color: var(--error); }
+    .form-group label .optional { color: var(--text-muted); font-weight: 400; font-size: 12px; }
     
     .form-group select {
       padding: 10px 12px;
@@ -435,11 +420,166 @@
       cursor: pointer;
       font-family: inherit;
       transition: all 0.15s;
-      min-width: 200px;
     }
     
     .form-group select:hover { border-color: var(--text-muted); }
     .form-group select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+    
+    /* Multi-select for rows */
+    .row-selector {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    
+    .row-selector-available {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      min-height: 48px;
+    }
+    
+    .row-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+      user-select: none;
+    }
+    
+    .row-chip:hover {
+      border-color: var(--accent);
+      background: var(--accent-light);
+    }
+    
+    .row-chip.selected {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+    
+    .row-chip .order-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      background: rgba(255,255,255,0.3);
+      border-radius: 50%;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    
+    .selected-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    
+    .selected-row-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--accent-light);
+      border: 1px solid var(--accent);
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 500;
+    }
+    
+    .selected-row-item .order-num {
+      width: 22px;
+      height: 22px;
+      background: var(--accent);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    
+    .selected-row-item .name { flex: 1; }
+    
+    .selected-row-item .move-btns {
+      display: flex;
+      gap: 4px;
+    }
+    
+    .selected-row-item .move-btn {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      transition: all 0.15s;
+    }
+    
+    .selected-row-item .move-btn:hover {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+    
+    .selected-row-item .remove-chip {
+      background: transparent;
+      border: none;
+      color: var(--accent);
+      cursor: pointer;
+      font-size: 18px;
+      padding: 0 4px;
+    }
+    
+    .selected-row-item .remove-chip:hover {
+      color: var(--error);
+    }
+    
+    /* Apply to all button */
+    .apply-all-container {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    
+    .apply-all-btn {
+      background: var(--warning-light);
+      color: var(--warning);
+      border: 1px solid var(--warning);
+      padding: 8px 16px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: inherit;
+      transition: all 0.15s;
+    }
+    
+    .apply-all-btn:hover {
+      background: var(--warning);
+      color: white;
+    }
     
     /* Matrix Config */
     .matrix-card {
@@ -491,6 +631,10 @@
     
     .matrix-body { padding: 16px; }
     
+    .source-selector {
+      margin-bottom: 16px;
+    }
+    
     .source-selector label {
       display: block;
       font-weight: 600;
@@ -539,7 +683,7 @@
     
     .add-matrix-btn:hover { border-color: var(--accent); background: var(--accent-light); }
     
-    /* Filter */
+    /* Filter Section */
     .filter-section {
       background: var(--bg);
       border: 1px solid var(--border);
@@ -576,46 +720,6 @@
       color: var(--text-secondary);
     }
     
-    .filter-step {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      padding: 20px;
-      margin-bottom: 16px;
-    }
-    
-    .filter-step-header {
-      display: flex;
-      align-items: flex-start;
-      gap: 14px;
-      margin-bottom: 16px;
-    }
-    
-    .filter-step-header .step-number {
-      width: 28px;
-      height: 28px;
-      background: var(--accent);
-      color: white;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 13px;
-      font-weight: 700;
-      flex-shrink: 0;
-    }
-    
-    .filter-step-header h3 {
-      font-size: 15px;
-      font-weight: 600;
-      margin-bottom: 2px;
-    }
-    
-    .filter-step-header p {
-      font-size: 13px;
-      color: var(--text-secondary);
-    }
-    
     .filter-file-info {
       display: flex;
       align-items: center;
@@ -624,9 +728,13 @@
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: var(--radius);
+      margin-bottom: 16px;
     }
     
-    .filter-file-info .icon { font-size: 24px; }
+    .filter-file-info .icon {
+      font-size: 24px;
+    }
+    
     .filter-file-info .info { flex: 1; }
     .filter-file-info .name { font-weight: 600; font-size: 14px; }
     .filter-file-info .meta { font-size: 13px; color: var(--text-secondary); }
@@ -635,20 +743,10 @@
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 16px;
+      margin-top: 16px;
     }
     
     @media (max-width: 600px) { .filter-config { grid-template-columns: 1fr; } }
-    
-    .filter-config .form-group label {
-      display: block;
-      font-weight: 600;
-      font-size: 13px;
-      margin-bottom: 6px;
-    }
-    
-    .filter-config .form-group select {
-      width: 100%;
-    }
     
     .filter-badge {
       display: inline-flex;
@@ -662,87 +760,6 @@
       font-weight: 600;
       margin-top: 12px;
     }
-    
-    .filter-mapping-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 14px 16px;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      margin-bottom: 10px;
-    }
-    
-    .filter-mapping-item:last-child { margin-bottom: 0; }
-    
-    .filter-mapping-item .source-name {
-      flex: 1;
-      font-size: 14px;
-      font-weight: 500;
-    }
-    
-    .filter-mapping-item .source-name .file-name {
-      color: var(--text-secondary);
-      font-weight: 400;
-      font-size: 12px;
-      display: block;
-      margin-top: 2px;
-    }
-    
-    .filter-mapping-item select {
-      min-width: 180px;
-    }
-    
-    .filter-mapping-item .arrow {
-      color: var(--text-muted);
-      font-size: 18px;
-    }
-    
-    .filter-mapping-item .match-info {
-      font-size: 12px;
-      padding: 4px 10px;
-      border-radius: 100px;
-      font-weight: 600;
-      min-width: 80px;
-      text-align: center;
-    }
-    
-    .filter-mapping-item .match-info.good {
-      background: var(--success-light);
-      color: var(--success);
-    }
-    
-    .filter-mapping-item .match-info.warning {
-      background: var(--warning-light);
-      color: var(--warning);
-    }
-    
-    .filter-mapping-item .match-info.none {
-      background: #fef2f2;
-      color: var(--error);
-    }
-    
-    .filter-mapping-item .match-info.skip {
-      background: var(--bg-hover);
-      color: var(--text-muted);
-    }
-    
-    .filter-summary {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 12px 16px;
-      background: var(--success-light);
-      color: var(--success);
-      border-radius: var(--radius);
-      font-size: 13px;
-      font-weight: 500;
-      margin-top: 16px;
-    }
-    
-    .filter-summary .icon { font-size: 16px; }
-    .filter-summary strong { font-weight: 700; }
     
     .skip-filter-note {
       text-align: center;
@@ -798,6 +815,7 @@
     
     .matrix-preview p { font-size: 13px; color: var(--text-secondary); }
     
+    /* Loading */
     .loading {
       position: fixed;
       inset: 0;
@@ -824,6 +842,7 @@
     
     .hidden { display: none !important; }
     
+    /* Empty state */
     .empty-state {
       text-align: center;
       padding: 32px;
@@ -834,24 +853,24 @@
 <body>
   <div class="container">
     <header class="header">
-      <h1>📊 Matrix Processor</h1>
-      <p>Create intersection matrices from Excel and CSV files</p>
+      <h1>📊 Procesador de Matrices</h1>
+      <p>Crea matrices de intersección desde archivos Excel y CSV</p>
     </header>
     
     <div class="progress">
-      <div class="step active" data-step="1"><span class="num">1</span> Upload</div>
-      <div class="step" data-step="2"><span class="num">2</span> Sheets</div>
-      <div class="step" data-step="3"><span class="num">3</span> Columns</div>
-      <div class="step" data-step="4"><span class="num">4</span> Filter</div>
-      <div class="step" data-step="5"><span class="num">5</span> Configure</div>
-      <div class="step" data-step="6"><span class="num">6</span> Export</div>
+      <div class="step active" data-step="1" onclick="navigateToStep(1)"><span class="num">1</span> Cargar</div>
+      <div class="step" data-step="2" onclick="navigateToStep(2)"><span class="num">2</span> Hojas</div>
+      <div class="step" data-step="3" onclick="navigateToStep(3)"><span class="num">3</span> Columnas</div>
+      <div class="step" data-step="4" onclick="navigateToStep(4)"><span class="num">4</span> Filtro</div>
+      <div class="step" data-step="5" onclick="navigateToStep(5)"><span class="num">5</span> Configurar</div>
+      <div class="step" data-step="6" onclick="navigateToStep(6)"><span class="num">6</span> Exportar</div>
     </div>
     
     <!-- Step 1: Upload -->
     <div id="step1" class="card">
       <div class="card-header">
-        <h2>Upload your files</h2>
-        <p>Add one or more Excel or CSV files to get started</p>
+        <h2>Carga tus archivos</h2>
+        <p>Agrega uno o más archivos Excel o CSV para comenzar</p>
       </div>
       
       <div class="drop-zone" id="dropZone">
@@ -862,14 +881,14 @@
             <line x1="12" y1="3" x2="12" y2="15"></line>
           </svg>
         </div>
-        <h3>Drop files here or click to browse</h3>
-        <p>Supports Excel (.xlsx, .xls) and CSV files</p>
+        <h3>Arrastra archivos aquí o haz clic para buscar</h3>
+        <p>Soporta archivos Excel (.xlsx, .xls) y CSV</p>
         <input type="file" id="fileInput" multiple accept=".xlsx,.xls,.csv" style="display:none">
       </div>
       
       <div class="file-list hidden" id="fileList">
         <div class="file-list-header">
-          <h3>Selected files</h3>
+          <h3>Archivos seleccionados</h3>
           <span class="file-count" id="fileCount">0</span>
         </div>
         <div id="fileItems"></div>
@@ -877,150 +896,123 @@
       
       <div class="btn-group">
         <div></div>
-        <button class="btn btn-primary" id="uploadBtn" disabled>Continue →</button>
+        <button class="btn btn-primary" id="uploadBtn" disabled>Continuar →</button>
       </div>
     </div>
     
     <!-- Step 2: Tabs -->
     <div id="step2" class="card hidden">
       <div class="card-header">
-        <h2>Select sheets to process</h2>
-        <p>Choose which sheets from each file you want to include</p>
+        <h2>Selecciona hojas a procesar</h2>
+        <p>Elige qué hojas de cada archivo quieres incluir</p>
       </div>
       <div id="tabsContainer"></div>
       <div class="btn-group">
-        <button class="btn btn-secondary" onclick="goToStep(1)">← Back</button>
-        <button class="btn btn-primary" id="tabsBtn" disabled>Continue →</button>
+        <button class="btn btn-secondary" onclick="goToStep(1)">← Atrás</button>
+        <button class="btn btn-primary" id="tabsBtn" disabled>Continuar →</button>
       </div>
     </div>
     
     <!-- Step 3: Columns -->
     <div id="step3" class="card hidden">
       <div class="card-header">
-        <h2>Define matrix structure</h2>
-        <p>Select which columns become rows and which become columns in the output matrix</p>
+        <h2>Define los ejes de la matriz</h2>
+        <p>Selecciona qué columnas usar para filas (X) y columnas (Y) en cada matriz</p>
+      </div>
+      <div class="apply-all-container">
+        <button class="apply-all-btn" onclick="applyToAll()">
+          <span>📋</span> Aplicar selección a todos
+        </button>
       </div>
       <div id="columnsContainer"></div>
       <div class="btn-group">
-        <button class="btn btn-secondary" onclick="goToStep(2)">← Back</button>
-        <button class="btn btn-primary" id="columnsBtn" disabled>Continue →</button>
+        <button class="btn btn-secondary" onclick="goToStep(2)">← Atrás</button>
+        <button class="btn btn-primary" id="columnsBtn" disabled>Continuar →</button>
       </div>
     </div>
     
-    <!-- Step 4: Filter -->
+    <!-- Step 4: Filter (NEW) -->
     <div id="step4" class="card hidden">
       <div class="card-header">
-        <h2>Filter rows (optional)</h2>
-        <p>Load an index file to filter matrix rows — e.g., keep only active employees</p>
+        <h2>Filtrar filas (opcional)</h2>
+        <p>Carga un archivo índice para filtrar las filas de la matriz — ej: mantener solo empleados activos</p>
       </div>
       
       <div class="filter-section">
-        <!-- Step 4a: Upload index file -->
-        <div class="filter-step">
-          <div class="filter-step-header">
-            <span class="step-number">1</span>
-            <div>
-              <h3>Upload Index File</h3>
-              <p>A file containing the list of values you want to keep (e.g., active employee IDs)</p>
-            </div>
-          </div>
-          
-          <div id="filterDropZone" class="drop-zone small">
-            <div class="drop-zone-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="17 8 12 3 7 8"></polyline>
-                <line x1="12" y1="3" x2="12" y2="15"></line>
-              </svg>
-            </div>
-            <h3>Drop index file here or click to browse</h3>
-            <p>Excel or CSV file</p>
-            <input type="file" id="filterFileInput" accept=".xlsx,.xls,.csv" style="display:none">
-          </div>
-          
-          <div id="filterFileLoaded" class="hidden">
-            <div class="filter-file-info">
-              <span class="icon">📄</span>
-              <div class="info">
-                <div class="name" id="filterFileName"></div>
-                <div class="meta" id="filterFileMeta"></div>
-              </div>
-              <button class="remove-btn" onclick="removeFilterFile()" title="Remove">×</button>
-            </div>
+        <div class="filter-header">
+          <span class="icon">🔍</span>
+          <div>
+            <h3>Archivo Índice</h3>
+            <p>Sube un archivo con una lista de valores a mantener (ej: IDs de empleados activos)</p>
           </div>
         </div>
         
-        <!-- Step 4b: Configure index file column -->
-        <div id="filterConfigStep" class="filter-step hidden">
-          <div class="filter-step-header">
-            <span class="step-number">2</span>
-            <div>
-              <h3>Select Filter Column</h3>
-              <p>Choose which column in the index file contains the values to match</p>
+        <div id="filterDropZone" class="drop-zone small">
+          <div class="drop-zone-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+          </div>
+          <h3>Arrastra archivo índice aquí o haz clic para buscar</h3>
+          <p>Archivo Excel o CSV con una columna de valores a mantener</p>
+          <input type="file" id="filterFileInput" accept=".xlsx,.xls,.csv" style="display:none">
+        </div>
+        
+        <div id="filterFileLoaded" class="hidden">
+          <div class="filter-file-info">
+            <span class="icon">📄</span>
+            <div class="info">
+              <div class="name" id="filterFileName"></div>
+              <div class="meta" id="filterFileMeta"></div>
             </div>
+            <button class="remove-btn" onclick="removeFilterFile()" title="Eliminar">×</button>
           </div>
           
           <div class="filter-config">
             <div class="form-group">
-              <label>Sheet</label>
+              <label>Hoja</label>
               <select id="filterSheetSelect" onchange="updateFilterColumns()"></select>
             </div>
             <div class="form-group">
-              <label>Column with values to keep</label>
+              <label>Columna con valores a mantener</label>
               <select id="filterColumnSelect" onchange="updateFilterPreview()"></select>
             </div>
           </div>
           
           <div class="filter-badge" id="filterPreview">
-            <span>✓</span> <span id="filterValueCount">0</span> unique values found
+            <span>✓</span> <span id="filterValueCount">0</span> valores únicos se usarán como filtro
           </div>
         </div>
         
-        <!-- Step 4c: Map columns to match -->
-        <div id="filterMappingStep" class="filter-step hidden">
-          <div class="filter-step-header">
-            <span class="step-number">3</span>
-            <div>
-              <h3>Map Columns to Match</h3>
-              <p>For each data source, select which column should be matched against the filter</p>
-            </div>
-          </div>
-          
-          <div id="filterMappingContainer"></div>
-          
-          <div class="filter-summary" id="filterSummary">
-            <span class="icon">✓</span>
-            <span>Rows will be filtered to match <strong id="filterSummaryCount">0</strong> values from the index file</span>
-          </div>
-        </div>
-        
-        <p class="skip-filter-note" id="skipFilterNote">You can skip this step if you don't need to filter rows</p>
+        <p class="skip-filter-note">Puedes omitir este paso si no necesitas filtrar filas</p>
       </div>
       
       <div class="btn-group">
-        <button class="btn btn-secondary" onclick="goToStep(3)">← Back</button>
-        <button class="btn btn-primary" id="filterBtn">Continue →</button>
+        <button class="btn btn-secondary" onclick="goToStep(3)">← Atrás</button>
+        <button class="btn btn-primary" id="filterBtn">Continuar →</button>
       </div>
     </div>
     
     <!-- Step 5: Configure -->
     <div id="step5" class="card hidden">
       <div class="card-header">
-        <h2>Configure your matrices</h2>
-        <p>Create matrices and select which data sources to include in each</p>
+        <h2>Configura tus matrices</h2>
+        <p>Crea matrices y selecciona qué fuentes de datos incluir en cada una</p>
       </div>
-      <div id="filterActiveNotice" class="hidden" style="background: var(--success-light); border: 1px solid var(--success); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+      <div id="filterActiveNotice" class="hidden" style="background: var(--warning-light); border: 1px solid var(--warning); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
         <span style="font-size: 20px;">🔍</span>
         <div>
-          <strong style="color: var(--success);">Row filter active</strong>
-          <p style="font-size: 13px; color: var(--text-secondary); margin: 0;" id="filterActiveDescription">Filtering rows based on index file.</p>
+          <strong style="color: var(--warning);">Filtro de filas activo</strong>
+          <p style="font-size: 13px; color: var(--text-secondary); margin: 0;">Solo las filas que coincidan con el archivo índice se incluirán en las matrices.</p>
         </div>
       </div>
       <div id="configContainer"></div>
-      <button class="add-matrix-btn" id="addMatrixBtn">+ Add another matrix</button>
+      <button class="add-matrix-btn" id="addMatrixBtn">+ Agregar otra matriz</button>
       <div class="btn-group">
-        <button class="btn btn-secondary" onclick="goToStep(4)">← Back</button>
-        <button class="btn btn-primary" id="computeBtn">Generate Matrices →</button>
+        <button class="btn btn-secondary" onclick="goToStep(4)">← Atrás</button>
+        <button class="btn btn-primary" id="computeBtn">Generar Matrices →</button>
       </div>
     </div>
     
@@ -1028,23 +1020,23 @@
     <div id="step6" class="card hidden">
       <div class="success-message">
         <div class="success-icon">✓</div>
-        <h2>Matrices ready!</h2>
+        <h2>¡Matrices listas!</h2>
         <p id="matricesCount"></p>
       </div>
       <div class="matrices-grid" id="matricesPreview"></div>
-      <div class="btn-group" style="justify-content: space-between;">
-        <div style="display: flex; gap: 8px;">
-          <button class="btn btn-secondary" onclick="goToStep(5)">← Back</button>
-          <button class="btn btn-secondary" onclick="resetApp()">Start over</button>
-        </div>
-        <button class="btn btn-success" id="exportBtn">⬇ Download Excel</button>
+      <div class="btn-group">
+        <button class="btn btn-secondary" onclick="goToStep(5)">← Atrás</button>
+        <button class="btn btn-success" id="exportBtn">⬇ Descargar Excel</button>
+      </div>
+      <div style="text-align: center; margin-top: 16px;">
+        <button class="btn btn-secondary" onclick="resetApp()">Comenzar de nuevo</button>
       </div>
     </div>
   </div>
   
   <div class="loading hidden" id="loading">
     <div class="spinner"></div>
-    <p>Processing...</p>
+    <p>Procesando...</p>
   </div>
   
   <script>
@@ -1052,10 +1044,11 @@
     let files = [];
     let fileData = [];
     let selectedTabs = {};
-    let columnSelections = {}; // { key: { rowColumns: [...], colColumn: '...' } }
+    let columnSelections = {};
     let matrixConfig = [];
     let matrices = [];
     let currentStep = 1;
+    let maxCompletedStep = 0;
     let availableSources = [];
     
     // Filter state
@@ -1065,8 +1058,7 @@
       enabled: false,
       sheet: null,
       column: null,
-      values: [],
-      columnMappings: {} // { sourceKey: columnName } - which column in each source to match
+      values: []
     };
     
     // DOM Elements
@@ -1140,7 +1132,7 @@
             <div class="file-name">${f.name}</div>
             <div class="file-size">${formatSize(f.size)}</div>
           </div>
-          <button class="remove-btn" onclick="removeFile(${i})" title="Remove">×</button>
+          <button class="remove-btn" onclick="removeFile(${i})" title="Eliminar">×</button>
         </div>
       `).join('');
     }
@@ -1159,6 +1151,15 @@
         if (data.error) throw new Error(data.error);
         
         fileData = data.files;
+        
+        // Auto-select first sheet for each file (especially useful for CSVs)
+        fileData.forEach((file, fileIdx) => {
+          if (file.sheets.length > 0) {
+            const key = `${fileIdx}-${file.sheets[0].name}`;
+            selectedTabs[key] = true;
+          }
+        });
+        
         goToStep(2);
         renderTabs();
       } catch (err) {
@@ -1185,7 +1186,7 @@
                   <div class="tab-item ${selectedTabs[key] ? 'selected' : ''}" onclick="toggleTab('${fileIdx}', '${sheet.name.replace(/'/g, "\\'")}')">
                     <input type="checkbox" ${selectedTabs[key] ? 'checked' : ''} onclick="event.stopPropagation()">
                     <span class="tab-name">${sheet.name}</span>
-                    <span class="tab-info">${sheet.data.length} rows</span>
+                    <span class="tab-info">${sheet.data.length} filas</span>
                   </div>
                 `;
               }).join('')}
@@ -1206,7 +1207,7 @@
     function updateTabsBtn() {
       const count = Object.values(selectedTabs).filter(Boolean).length;
       tabsBtn.disabled = count === 0;
-      tabsBtn.textContent = count > 0 ? `Continue with ${count} sheet${count > 1 ? 's' : ''} →` : 'Select sheets to continue';
+      tabsBtn.textContent = count > 0 ? `Continuar con ${count} hoja${count > 1 ? 's' : ''} →` : 'Selecciona hojas para continuar';
     }
     
     tabsBtn.addEventListener('click', () => {
@@ -1214,7 +1215,7 @@
       renderColumns();
     });
     
-    // Step 3: Columns - FIXED labels and multi-select for rows
+    // Step 3: Columns with multi-select for rows
     function renderColumns() {
       const container = document.getElementById('columnsContainer');
       const items = [];
@@ -1227,46 +1228,54 @@
         const sheet = file.sheets.find(s => s.name === sheetName);
         if (!sheet) return;
         
-        // Initialize selection if not exists
-        if (!columnSelections[key]) {
-          columnSelections[key] = { rowColumns: [], colColumn: null };
-        }
-        const sel = columnSelections[key];
+        const sel = columnSelections[key] || {};
+        const selectedRows = sel.xAxisMultiple || [];
         
         items.push(`
-          <div class="section-card">
+          <div class="section-card" data-key="${key}">
             <div class="section-header">
               <span class="icon">📊</span>
               <span>${file.fileName} → ${sheetName}</span>
             </div>
             <div class="section-body">
-              <div class="axis-section">
-                <div class="axis-label">
-                  Rows <span class="required">*</span>
-                  <span class="hint">— select one or more columns (values become row labels)</span>
-                </div>
-                <div class="column-chips">
-                  ${sheet.headers.map(h => {
-                    const isSelected = sel.rowColumns && sel.rowColumns.includes(h);
-                    return `
-                      <label class="column-chip ${isSelected ? 'selected' : ''}" onclick="toggleRowColumn('${key}', '${h.replace(/'/g, "\\'")}')">
-                        <input type="checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation()">
-                        <span>${h}</span>
-                      </label>
-                    `;
-                  }).join('')}
-                </div>
-              </div>
-              
-              <div class="axis-section">
-                <div class="axis-label">
-                  Columns <span class="required">*</span>
-                  <span class="hint">— values become column headers</span>
+              <div class="column-grid">
+                <div class="form-group">
+                  <label>Eje X (Filas) <span class="required">*</span></label>
+                  <div class="row-selector">
+                    <div class="row-selector-available">
+                      ${sheet.headers.map(h => {
+                        const idx = selectedRows.indexOf(h);
+                        const isSelected = idx >= 0;
+                        return `
+                          <div class="row-chip ${isSelected ? 'selected' : ''}" onclick="toggleRowColumn('${key}', '${h.replace(/'/g, "\\'")}')">
+                            ${isSelected ? `<span class="order-badge">${idx + 1}</span>` : ''}
+                            ${h}
+                          </div>
+                        `;
+                      }).join('')}
+                    </div>
+                    ${selectedRows.length > 0 ? `
+                      <div class="selected-rows">
+                        ${selectedRows.map((h, idx) => `
+                          <div class="selected-row-item">
+                            <span class="order-num">${idx + 1}</span>
+                            <span class="name">${h}</span>
+                            <div class="move-btns">
+                              <button class="move-btn" onclick="moveRowColumn('${key}', ${idx}, -1)" ${idx === 0 ? 'disabled' : ''}>↑</button>
+                              <button class="move-btn" onclick="moveRowColumn('${key}', ${idx}, 1)" ${idx === selectedRows.length - 1 ? 'disabled' : ''}>↓</button>
+                            </div>
+                            <button class="remove-chip" onclick="removeRowColumn('${key}', '${h.replace(/'/g, "\\'")}')">×</button>
+                          </div>
+                        `).join('')}
+                      </div>
+                    ` : '<p style="font-size: 13px; color: var(--text-muted); margin-top: 8px;">Haz clic en las columnas para seleccionarlas como filas</p>'}
+                  </div>
                 </div>
                 <div class="form-group">
-                  <select onchange="setColColumn('${key}', this.value)">
-                    <option value="">Select column...</option>
-                    ${sheet.headers.map(h => `<option value="${h}" ${sel.colColumn === h ? 'selected' : ''}>${h}</option>`).join('')}
+                  <label>Eje Y (Columnas) <span class="required">*</span></label>
+                  <select onchange="setColumn('${key}', 'yAxis', this.value)">
+                    <option value="">Seleccionar columna...</option>
+                    ${sheet.headers.map(h => `<option value="${h}" ${sel.yAxis === h ? 'selected' : ''}>${h}</option>`).join('')}
                   </select>
                 </div>
               </div>
@@ -1280,25 +1289,104 @@
     }
     
     function toggleRowColumn(key, column) {
-      if (!columnSelections[key]) {
-        columnSelections[key] = { rowColumns: [], colColumn: null };
-      }
-      const sel = columnSelections[key];
-      const idx = sel.rowColumns.indexOf(column);
+      if (!columnSelections[key]) columnSelections[key] = {};
+      if (!columnSelections[key].xAxisMultiple) columnSelections[key].xAxisMultiple = [];
+      
+      const arr = columnSelections[key].xAxisMultiple;
+      const idx = arr.indexOf(column);
+      
       if (idx >= 0) {
-        sel.rowColumns.splice(idx, 1);
+        arr.splice(idx, 1);
       } else {
-        sel.rowColumns.push(column);
+        arr.push(column);
       }
+      
       renderColumns();
     }
     
-    function setColColumn(key, value) {
-      if (!columnSelections[key]) {
-        columnSelections[key] = { rowColumns: [], colColumn: null };
-      }
-      columnSelections[key].colColumn = value || null;
+    function removeRowColumn(key, column) {
+      if (!columnSelections[key]?.xAxisMultiple) return;
+      const arr = columnSelections[key].xAxisMultiple;
+      const idx = arr.indexOf(column);
+      if (idx >= 0) arr.splice(idx, 1);
+      renderColumns();
+    }
+    
+    function moveRowColumn(key, fromIdx, direction) {
+      if (!columnSelections[key]?.xAxisMultiple) return;
+      const arr = columnSelections[key].xAxisMultiple;
+      const toIdx = fromIdx + direction;
+      if (toIdx < 0 || toIdx >= arr.length) return;
+      
+      const temp = arr[fromIdx];
+      arr[fromIdx] = arr[toIdx];
+      arr[toIdx] = temp;
+      renderColumns();
+    }
+    
+    function setColumn(key, field, value) {
+      if (!columnSelections[key]) columnSelections[key] = {};
+      columnSelections[key][field] = value || null;
       updateColumnsBtn();
+    }
+    
+    function applyToAll() {
+      // Find the first complete selection
+      let sourceKey = null;
+      let sourceSelection = null;
+      
+      for (const key of Object.keys(selectedTabs)) {
+        if (!selectedTabs[key]) continue;
+        const sel = columnSelections[key];
+        if (sel && sel.xAxisMultiple?.length > 0 && sel.yAxis) {
+          sourceKey = key;
+          sourceSelection = sel;
+          break;
+        }
+      }
+      
+      if (!sourceSelection) {
+        alert('Primero completa la selección en al menos un archivo para poder aplicarla a todos.');
+        return;
+      }
+      
+      let appliedCount = 0;
+      
+      // Apply to all other sheets that have matching column names
+      Object.keys(selectedTabs).forEach(key => {
+        if (!selectedTabs[key] || key === sourceKey) return;
+        
+        const [fileIdx, ...rest] = key.split('-');
+        const sheetName = rest.join('-');
+        const file = fileData[parseInt(fileIdx)];
+        const sheet = file.sheets.find(s => s.name === sheetName);
+        if (!sheet) return;
+        
+        const headers = sheet.headers;
+        
+        // Check if all selected columns exist in this sheet
+        const matchingXAxis = sourceSelection.xAxisMultiple.filter(col => headers.includes(col));
+        const hasYAxis = headers.includes(sourceSelection.yAxis);
+        
+        if (matchingXAxis.length > 0 || hasYAxis) {
+          if (!columnSelections[key]) columnSelections[key] = {};
+          
+          if (matchingXAxis.length > 0) {
+            columnSelections[key].xAxisMultiple = [...matchingXAxis];
+          }
+          if (hasYAxis) {
+            columnSelections[key].yAxis = sourceSelection.yAxis;
+          }
+          appliedCount++;
+        }
+      });
+      
+      if (appliedCount > 0) {
+        renderColumns();
+        alert(`Selección aplicada a ${appliedCount} archivo${appliedCount > 1 ? 's' : ''}.`);
+      } else {
+        alert('No se encontraron archivos con columnas coincidentes.');
+      }
     }
     
     function updateColumnsBtn() {
@@ -1306,9 +1394,7 @@
       Object.keys(selectedTabs).forEach(key => {
         if (!selectedTabs[key]) return;
         const sel = columnSelections[key];
-        if (!sel || !sel.colColumn || !sel.rowColumns || sel.rowColumns.length === 0) {
-          complete = false;
-        }
+        if (!sel || !sel.yAxis || !sel.xAxisMultiple || sel.xAxisMultiple.length === 0) complete = false;
       });
       columnsBtn.disabled = !complete;
     }
@@ -1353,25 +1439,21 @@
         
         filterFileData = data.file;
         
-        // Show file loaded state
+        // Show loaded file UI
         filterDropZone.classList.add('hidden');
         filterFileLoaded.classList.remove('hidden');
+        
         document.getElementById('filterFileName').textContent = file.name;
-        document.getElementById('filterFileMeta').textContent = `${filterFileData.sheets.length} sheet(s)`;
+        document.getElementById('filterFileMeta').textContent = `${filterFileData.sheets.length} hoja(s)`;
         
-        // Show step 2 (filter column selection)
-        document.getElementById('filterConfigStep').classList.remove('hidden');
-        
+        // Populate sheet dropdown
         filterSheetSelect.innerHTML = filterFileData.sheets.map((s, i) => 
-          `<option value="${i}">${s.name} (${s.data.length} rows)</option>`
+          `<option value="${i}">${s.name} (${s.data.length} filas)</option>`
         ).join('');
-        
-        // Hide skip note when filter is active
-        document.getElementById('skipFilterNote').style.display = 'none';
         
         updateFilterColumns();
       } catch (err) {
-        alert('Error loading filter file: ' + err.message);
+        alert('Error al cargar archivo de filtro: ' + err.message);
         filterFile = null;
         filterFileData = null;
       } finally {
@@ -1396,7 +1478,7 @@
       const column = filterColumnSelect.value;
       const sheet = filterFileData.sheets[sheetIdx];
       
-      // Collect and trim all filter values
+      // Get unique values from the column
       const values = new Set();
       sheet.data.forEach(row => {
         const val = String(row[column] || '').trim();
@@ -1410,150 +1492,15 @@
       
       document.getElementById('filterValueCount').textContent = values.size;
       document.getElementById('filterPreview').classList.remove('hidden');
-      
-      // Show step 3 (column mapping) and render mappings
-      document.getElementById('filterMappingStep').classList.remove('hidden');
-      renderFilterMappings();
-    }
-    
-    function renderFilterMappings() {
-      const container = document.getElementById('filterMappingContainer');
-      const items = [];
-      
-      // Initialize mappings if needed
-      filterConfig.columnMappings = filterConfig.columnMappings || {};
-      
-      Object.keys(selectedTabs).forEach(key => {
-        if (!selectedTabs[key]) return;
-        
-        const [fileIdx, ...rest] = key.split('-');
-        const sheetName = rest.join('-');
-        const file = fileData[parseInt(fileIdx)];
-        const sheet = file.sheets.find(s => s.name === sheetName);
-        if (!sheet) return;
-        
-        // Get the row columns selected in step 3
-        const sel = columnSelections[key] || {};
-        const rowColumns = sel.rowColumns || [];
-        
-        // Default to first row column if not set
-        if (!filterConfig.columnMappings[key] && rowColumns.length > 0) {
-          filterConfig.columnMappings[key] = rowColumns[0];
-        }
-        
-        const currentMapping = filterConfig.columnMappings[key] || '';
-        
-        items.push(`
-          <div class="filter-mapping-item" data-key="${key}">
-            <div class="source-name">
-              ${sheetName}
-              <span class="file-name">${file.fileName}</span>
-            </div>
-            <span class="arrow">→</span>
-            <select onchange="setFilterMapping('${key}', this.value)">
-              <option value="">Don't filter this source</option>
-              ${sheet.headers.map(h => `<option value="${h}" ${currentMapping === h ? 'selected' : ''}>${h}</option>`).join('')}
-            </select>
-            <span class="match-info skip" data-match-info="${key}">—</span>
-          </div>
-        `);
-      });
-      
-      container.innerHTML = items.join('');
-      
-      // Validate matches after rendering
-      validateFilterMatches();
-    }
-    
-    async function validateFilterMatches() {
-      if (!filterConfig.values || filterConfig.values.length === 0) return;
-      if (!filterConfig.columnMappings || Object.keys(filterConfig.columnMappings).length === 0) return;
-      
-      try {
-        const res = await fetch('/api/validate-filter', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            filterValues: filterConfig.values,
-            columnMappings: filterConfig.columnMappings,
-            fileData: fileData
-          })
-        });
-        
-        const data = await res.json();
-        
-        if (data.results) {
-          let totalMatches = 0;
-          
-          Object.keys(data.results).forEach(key => {
-            const info = data.results[key];
-            const matchEl = document.querySelector(`[data-match-info="${key}"]`);
-            if (matchEl) {
-              totalMatches += info.matching;
-              
-              if (info.matching === 0) {
-                matchEl.className = 'match-info none';
-                matchEl.textContent = '0 matches';
-              } else if (info.matching < info.total * 0.1) {
-                matchEl.className = 'match-info warning';
-                matchEl.textContent = `${info.matching}/${info.total}`;
-              } else {
-                matchEl.className = 'match-info good';
-                matchEl.textContent = `${info.matching}/${info.total}`;
-              }
-            }
-          });
-          
-          // Update sources without mapping
-          document.querySelectorAll('[data-match-info]').forEach(el => {
-            const key = el.getAttribute('data-match-info');
-            if (!data.results[key]) {
-              el.className = 'match-info skip';
-              el.textContent = 'No filter';
-            }
-          });
-          
-          // Update summary
-          updateFilterSummary(totalMatches);
-        }
-      } catch (err) {
-        console.error('Filter validation error:', err);
-      }
-    }
-    
-    function setFilterMapping(key, column) {
-      if (column) {
-        filterConfig.columnMappings[key] = column;
-      } else {
-        delete filterConfig.columnMappings[key];
-      }
-      validateFilterMatches();
-    }
-    
-    function updateFilterSummary(totalMatches) {
-      const count = filterConfig.values ? filterConfig.values.length : 0;
-      document.getElementById('filterSummaryCount').textContent = count;
-      
-      // Update the summary message
-      const summary = document.getElementById('filterSummary');
-      if (totalMatches !== undefined) {
-        summary.innerHTML = `
-          <span class="icon">✓</span>
-          <span>Filter has <strong>${count}</strong> values | <strong>${totalMatches}</strong> total row matches across all sources</span>
-        `;
-      }
     }
     
     function removeFilterFile() {
       filterFile = null;
       filterFileData = null;
-      filterConfig = { enabled: false, sheet: null, column: null, values: [], columnMappings: {} };
+      filterConfig = { enabled: false, sheet: null, column: null, values: [] };
       
       filterDropZone.classList.remove('hidden');
       filterFileLoaded.classList.add('hidden');
-      document.getElementById('filterConfigStep').classList.add('hidden');
-      document.getElementById('filterMappingStep').classList.add('hidden');
-      document.getElementById('skipFilterNote').style.display = 'block';
       filterFileInput.value = '';
     }
     
@@ -1563,15 +1510,11 @@
       initMatrixConfig();
       renderConfig();
       
+      // Show/hide filter notice
       const notice = document.getElementById('filterActiveNotice');
       if (filterConfig.enabled && filterConfig.values.length > 0) {
         notice.classList.remove('hidden');
         notice.style.display = 'flex';
-        // Update description with filter info
-        const mappedCount = Object.keys(filterConfig.columnMappings || {}).length;
-        const valuesCount = filterConfig.values.length;
-        document.getElementById('filterActiveDescription').textContent = 
-          `Filtering ${mappedCount} data source${mappedCount !== 1 ? 's' : ''} against ${valuesCount} unique values from the index file.`;
       } else {
         notice.classList.add('hidden');
       }
@@ -1609,19 +1552,19 @@
       const container = document.getElementById('configContainer');
       
       if (matrixConfig.length === 0) {
-        container.innerHTML = '<div class="empty-state">No matrices configured. Click "Add another matrix" to create one.</div>';
+        container.innerHTML = '<div class="empty-state">No hay matrices configuradas. Haz clic en "Agregar otra matriz" para crear una.</div>';
         return;
       }
       
       container.innerHTML = matrixConfig.map((config, idx) => `
         <div class="matrix-card">
           <div class="matrix-header">
-            <input type="text" class="matrix-name" value="${config.name}" onchange="setMatrixName(${idx}, this.value)" placeholder="Matrix name">
-            ${matrixConfig.length > 1 ? `<button class="remove-matrix-btn" onclick="removeMatrix(${idx})">Remove</button>` : ''}
+            <input type="text" class="matrix-name" value="${config.name}" onchange="setMatrixName(${idx}, this.value)" placeholder="Nombre de la matriz">
+            ${matrixConfig.length > 1 ? `<button class="remove-matrix-btn" onclick="removeMatrix(${idx})">Eliminar</button>` : ''}
           </div>
           <div class="matrix-body">
             <div class="source-selector">
-              <label>Include data from:</label>
+              <label>Incluir datos de:</label>
               <div class="source-checkboxes">
                 ${availableSources.map(source => {
                   const isSelected = config.sourceKeys.includes(source.key);
@@ -1664,7 +1607,7 @@
     addMatrixBtn.addEventListener('click', () => {
       if (availableSources.length > 0) {
         matrixConfig.push({
-          name: `Matrix ${matrixConfig.length + 1}`,
+          name: `Matriz ${matrixConfig.length + 1}`,
           sourceKeys: [availableSources[0].key]
         });
         renderConfig();
@@ -1675,7 +1618,7 @@
     computeBtn.addEventListener('click', async () => {
       const invalid = matrixConfig.some(c => c.sourceKeys.length === 0);
       if (invalid) {
-        alert('Each matrix must have at least one data source selected.');
+        alert('Cada matriz debe tener al menos una fuente de datos seleccionada.');
         return;
       }
       
@@ -1706,50 +1649,27 @@
         };
       });
       
-      // Debug logging
-      console.log('=== COMPUTE DEBUG ===');
-      console.log('fileData:', fileData);
-      console.log('selectedTabs:', selectedTabs);
-      console.log('tabsForBackend:', tabsForBackend);
-      console.log('columnSelections:', columnSelections);
-      console.log('matrixConfig:', matrixConfig);
-      console.log('configForBackend:', configForBackend);
-      console.log('availableSources:', availableSources);
-      console.log('filterConfig:', filterConfig);
-      
       try {
-        const requestBody = {
-          fileData,
-          selectedTabs: tabsForBackend,
-          columnSelections,
-          matrixConfig: configForBackend,
-          filterConfig: filterConfig.enabled ? filterConfig : null
-        };
-        
-        console.log('Request body:', JSON.stringify(requestBody, null, 2));
-        
         const res = await fetch('/api/compute', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestBody)
+          body: JSON.stringify({
+            fileData,
+            selectedTabs: tabsForBackend,
+            columnSelections,
+            matrixConfig: configForBackend,
+            filterConfig: filterConfig.enabled ? filterConfig : null
+          })
         });
         
         const data = await res.json();
-        console.log('Response:', data);
-        
         if (data.error) throw new Error(data.error);
         
         matrices = data.matrices;
-        
-        if (!matrices || matrices.length === 0) {
-          throw new Error('No matrices were generated. Check that your column selections are correct and the data files contain matching values. View debug log at: /api/debug-log');
-        }
-        
         goToStep(6);
         renderResults();
       } catch (err) {
-        console.error('Compute error:', err);
-        alert('Error: ' + err.message + '\n\nCheck browser console (F12) and server debug log for details.');
+        alert('Error: ' + err.message);
       } finally {
         loading.classList.add('hidden');
       }
@@ -1758,12 +1678,12 @@
     // Step 6: Results
     function renderResults() {
       document.getElementById('matricesCount').textContent = 
-        `${matrices.length} matrix${matrices.length !== 1 ? 'es' : ''} generated successfully`;
+        `${matrices.length} matriz${matrices.length !== 1 ? 'ces' : ''} generada${matrices.length !== 1 ? 's' : ''} exitosamente`;
       
       document.getElementById('matricesPreview').innerHTML = matrices.map(m => `
         <div class="matrix-preview">
           <h3>${m.name}</h3>
-          <p>${m.rows.length} rows × ${m.cols.length} columns</p>
+          <p>${m.xAxis.length} filas × ${m.yAxis.length} columnas</p>
         </div>
       `).join('');
     }
@@ -1779,7 +1699,7 @@
           body: JSON.stringify({ matrices })
         });
         
-        if (!res.ok) throw new Error('Export failed');
+        if (!res.ok) throw new Error('Error en la exportación');
         
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
@@ -1796,8 +1716,21 @@
     });
     
     // Navigation
+    function navigateToStep(step) {
+      if (step <= maxCompletedStep || step === currentStep) {
+        goToStep(step);
+        
+        // Re-render appropriate content when navigating back
+        if (step === 2) renderTabs();
+        else if (step === 3) renderColumns();
+        else if (step === 5) renderConfig();
+        else if (step === 6 && matrices.length > 0) renderResults();
+      }
+    }
+    
     function goToStep(step) {
       currentStep = step;
+      if (step > maxCompletedStep) maxCompletedStep = step;
       
       document.querySelectorAll('.progress .step').forEach(el => {
         const s = parseInt(el.dataset.step);
@@ -1809,44 +1742,7 @@
       for (let i = 1; i <= 6; i++) {
         document.getElementById(`step${i}`).classList.toggle('hidden', i !== step);
       }
-      
-      // Re-render UI when navigating to certain steps
-      if (step === 2) {
-        renderTabs();
-      } else if (step === 3) {
-        renderColumns();
-      } else if (step === 4 && filterFileData) {
-        renderFilterMappings();
-      } else if (step === 5) {
-        buildAvailableSources();
-        initMatrixConfig();
-        renderConfig();
-        
-        // Update filter notice
-        const notice = document.getElementById('filterActiveNotice');
-        if (filterConfig.enabled && filterConfig.values.length > 0) {
-          notice.classList.remove('hidden');
-          notice.style.display = 'flex';
-          const mappedCount = Object.keys(filterConfig.columnMappings || {}).length;
-          const valuesCount = filterConfig.values.length;
-          document.getElementById('filterActiveDescription').textContent = 
-            `Filtering ${mappedCount} data source${mappedCount !== 1 ? 's' : ''} against ${valuesCount} unique values from the index file.`;
-        } else {
-          notice.classList.add('hidden');
-        }
-      }
     }
-    
-    // Make progress steps clickable for navigation
-    document.querySelectorAll('.progress .step').forEach(el => {
-      el.addEventListener('click', () => {
-        const step = parseInt(el.dataset.step);
-        // Only allow navigating to completed steps (steps before current)
-        if (el.classList.contains('completed')) {
-          goToStep(step);
-        }
-      });
-    });
     
     function resetApp() {
       files = [];
@@ -1856,20 +1752,19 @@
       matrixConfig = [];
       matrices = [];
       availableSources = [];
+      maxCompletedStep = 0;
       filterFile = null;
       filterFileData = null;
-      filterConfig = { enabled: false, sheet: null, column: null, values: [], columnMappings: {} };
+      filterConfig = { enabled: false, sheet: null, column: null, values: [] };
       
       fileItems.innerHTML = '';
       fileList.classList.add('hidden');
       uploadBtn.disabled = true;
       fileInput.value = '';
       
+      // Reset filter UI
       filterDropZone.classList.remove('hidden');
       filterFileLoaded.classList.add('hidden');
-      document.getElementById('filterConfigStep').classList.add('hidden');
-      document.getElementById('filterMappingStep').classList.add('hidden');
-      document.getElementById('skipFilterNote').style.display = 'block';
       filterFileInput.value = '';
       
       fetch('/api/reset', { method: 'POST' });
