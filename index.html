@@ -1134,7 +1134,9 @@
       enabled: false,
       sheet: null,
       column: null,
-      values: []
+      values: [],
+      valuesLower: [],
+      sourceMappings: {}
     };
     
     // DOM Elements
@@ -1712,7 +1714,7 @@
     function removeFilterFile() {
       filterFile = null;
       filterFileData = null;
-      filterConfig = { enabled: false, sheet: null, column: null, values: [], sourceMappings: {} };
+      filterConfig = { enabled: false, sheet: null, column: null, values: [], valuesLower: [], sourceMappings: {} };
       
       filterDropZone.classList.remove('hidden');
       filterFileLoaded.classList.add('hidden');
@@ -1970,7 +1972,7 @@
       maxCompletedStep = 0;
       filterFile = null;
       filterFileData = null;
-      filterConfig = { enabled: false, sheet: null, column: null, values: [], sourceMappings: {} };
+      filterConfig = { enabled: false, sheet: null, column: null, values: [], valuesLower: [], sourceMappings: {} };
       
       fileItems.innerHTML = '';
       fileList.classList.add('hidden');
