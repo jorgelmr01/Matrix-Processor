@@ -755,14 +755,27 @@
     
     .filter-mapping-item {
       display: grid;
-      grid-template-columns: 1fr 1fr 120px;
-      gap: 12px;
+      grid-template-columns: 1.2fr 1fr 1fr 90px;
+      gap: 10px;
       align-items: center;
       padding: 12px 16px;
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       margin-bottom: 8px;
+    }
+    
+    .filter-mapping-item .select-group {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    
+    .filter-mapping-item .select-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
     
     .filter-mapping-item .source-name {
@@ -807,7 +820,16 @@
       color: var(--error);
     }
     
-    @media (max-width: 600px) {
+    @media (max-width: 800px) {
+      .filter-mapping-item {
+        grid-template-columns: 1fr 1fr;
+      }
+      .filter-mapping-item .source-name {
+        grid-column: 1 / -1;
+      }
+    }
+    
+    @media (max-width: 500px) {
       .filter-mapping-item {
         grid-template-columns: 1fr;
       }
@@ -1035,19 +1057,11 @@
             <button class="remove-btn" onclick="removeFilterFile()" title="Eliminar">×</button>
           </div>
           
-          <div class="filter-config">
+          <div class="filter-config" style="grid-template-columns: 1fr;">
             <div class="form-group">
-              <label>Hoja</label>
+              <label>Hoja del archivo índice</label>
               <select id="filterSheetSelect" onchange="updateFilterColumns()"></select>
             </div>
-            <div class="form-group">
-              <label>Columna con valores a mantener</label>
-              <select id="filterColumnSelect" onchange="updateFilterPreview()"></select>
-            </div>
-          </div>
-          
-          <div class="filter-badge" id="filterPreview">
-            <span>✓</span> <span id="filterValueCount">0</span> valores únicos se usarán como filtro
           </div>
           
           <!-- Source column mapping section -->
@@ -1056,7 +1070,8 @@
               <span style="margin-right: 6px;">🔗</span>Mapear columnas para filtrar
             </h4>
             <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">
-              Selecciona qué columna de cada archivo debe coincidir con los valores del filtro
+              Para cada archivo, selecciona qué columna del archivo de filtro usar y qué columna del archivo de datos debe coincidir.
+              Esto permite filtrar distintos archivos por diferentes claves.
             </p>
             <div id="filterMappingContainer"></div>
           </div>
@@ -1133,10 +1148,10 @@
     let filterConfig = {
       enabled: false,
       sheet: null,
-      column: null,
-      values: [],
-      valuesLower: [],
-      sourceMappings: {}
+      filterHeaders: [],            // headers from filter file
+      sourceMappings: {},           // sourceKey -> data file column to match
+      filterColumnMappings: {},     // sourceKey -> filter file column to use
+      allFilterData: {}             // column -> {values: [], valuesLower: []}
     };
     
     // DOM Elements
@@ -1159,7 +1174,6 @@
     const filterFileInput = document.getElementById('filterFileInput');
     const filterFileLoaded = document.getElementById('filterFileLoaded');
     const filterSheetSelect = document.getElementById('filterSheetSelect');
-    const filterColumnSelect = document.getElementById('filterColumnSelect');
     
     // File Upload
     dropZone.addEventListener('click', () => fileInput.click());
@@ -1543,40 +1557,34 @@
       const sheetIdx = parseInt(filterSheetSelect.value);
       const sheet = filterFileData.sheets[sheetIdx];
       
-      filterColumnSelect.innerHTML = sheet.headers.map(h => 
-        `<option value="${h}">${h}</option>`
-      ).join('');
-      
       filterConfig.sheet = sheetIdx;
-      updateFilterPreview();
-    }
-    
-    function updateFilterPreview() {
-      const sheetIdx = parseInt(filterSheetSelect.value);
-      const column = filterColumnSelect.value;
-      const sheet = filterFileData.sheets[sheetIdx];
+      filterConfig.filterHeaders = sheet.headers;
       
-      // Get unique values from the column (lowercase for matching)
-      const values = new Set();
-      const valuesLower = new Set();
-      sheet.data.forEach(row => {
-        const val = String(row[column] || '').trim();
-        if (val) {
-          values.add(val);
-          valuesLower.add(val.toLowerCase());
-        }
+      // Collect ALL columns' values for per-source filtering
+      filterConfig.allFilterData = {};
+      sheet.headers.forEach(header => {
+        const colValues = new Set();
+        const colValuesLower = new Set();
+        sheet.data.forEach(row => {
+          const val = String(row[header] || '').trim();
+          if (val) {
+            colValues.add(val);
+            colValuesLower.add(val.toLowerCase());
+          }
+        });
+        filterConfig.allFilterData[header] = {
+          values: Array.from(colValues),
+          valuesLower: Array.from(colValuesLower)
+        };
       });
       
-      filterConfig.sheet = sheetIdx;
-      filterConfig.column = column;
-      filterConfig.values = Array.from(values);
-      filterConfig.valuesLower = Array.from(valuesLower);
       filterConfig.enabled = true;
       
-      document.getElementById('filterValueCount').textContent = values.size;
-      document.getElementById('filterPreview').classList.remove('hidden');
+      // Reset mappings when sheet changes so auto-select runs again
+      filterConfig.filterColumnMappings = {};
+      filterConfig.sourceMappings = {};
       
-      // Render source mappings
+      // Render source mappings with auto-selection
       renderFilterMappings();
     }
     
@@ -1624,8 +1632,32 @@
       
       section.style.display = 'block';
       
+      // Get filter file headers
+      const filterSheetIdx = parseInt(filterSheetSelect.value);
+      const filterSheet = filterFileData.sheets[filterSheetIdx];
+      const filterHeaders = filterSheet ? filterSheet.headers : [];
+      
+      // Auto-select best matching columns if not yet selected
+      let needsRerender = false;
+      sources.forEach(source => {
+        if (!filterConfig.filterColumnMappings[source.key] || !filterConfig.sourceMappings[source.key]) {
+          // Find the best combination of filter column + source column with most matches
+          const bestMatch = findBestFilterMatch(source, filterHeaders);
+          if (bestMatch) {
+            if (!filterConfig.filterColumnMappings[source.key]) {
+              filterConfig.filterColumnMappings[source.key] = bestMatch.filterCol;
+            }
+            if (!filterConfig.sourceMappings[source.key]) {
+              filterConfig.sourceMappings[source.key] = bestMatch.sourceCol;
+              needsRerender = true;
+            }
+          }
+        }
+      });
+      
       container.innerHTML = sources.map(source => {
-        const currentMapping = filterConfig.sourceMappings[source.key] || '';
+        const currentSourceMapping = filterConfig.sourceMappings[source.key] || '';
+        const currentFilterColMapping = filterConfig.filterColumnMappings[source.key] || (filterHeaders[0] || '');
         const safeKey = source.key.replace(/[^a-zA-Z0-9]/g, '_');
         const safeFileName = source.fileName.replace(/"/g, '&quot;');
         const safeSheetName = source.sheetName.replace(/"/g, '&quot;');
@@ -1635,32 +1667,79 @@
             <div class="source-name" title="${safeFileName} → ${safeSheetName}">
               📄 ${source.fileName} → ${source.sheetName}
             </div>
-            <select onchange="updateSourceMapping('${source.key}', this.value)">
-              <option value="">-- Seleccionar columna --</option>
-              ${source.headers.map(h => {
-                const safeH = String(h).replace(/"/g, '&quot;');
-                return `<option value="${safeH}" ${h === currentMapping ? 'selected' : ''}>${h}</option>`;
-              }).join('')}
-            </select>
+            <div class="select-group">
+              <span class="select-label">Columna filtro</span>
+              <select onchange="updateFilterColumnMapping('${source.key}', this.value)">
+                ${filterHeaders.map(h => {
+                  const safeH = String(h).replace(/"/g, '&quot;');
+                  return `<option value="${safeH}" ${h === currentFilterColMapping ? 'selected' : ''}>${h}</option>`;
+                }).join('')}
+              </select>
+            </div>
+            <div class="select-group">
+              <span class="select-label">Columna archivo</span>
+              <select onchange="updateSourceMapping('${source.key}', this.value)">
+                <option value="">-- Seleccionar --</option>
+                ${source.headers.map(h => {
+                  const safeH = String(h).replace(/"/g, '&quot;');
+                  return `<option value="${safeH}" ${h === currentSourceMapping ? 'selected' : ''}>${h}</option>`;
+                }).join('')}
+              </select>
+            </div>
             <div class="match-count" id="matchCount-${safeKey}">
-              ${currentMapping ? calcMatchCount(source, currentMapping) : '-- / --'}
+              ${currentSourceMapping && currentFilterColMapping ? calcMatchCount(source, currentSourceMapping, currentFilterColMapping) : '-- / --'}
             </div>
           </div>
         `;
       }).join('');
+    }
+    
+    function findBestFilterMatch(source, filterHeaders) {
+      // Find the combination of filter column + source column with most matches
+      let bestMatch = null;
+      let bestMatchCount = 0;
       
-      // Auto-select columns if not yet selected
-      sources.forEach(source => {
-        if (!filterConfig.sourceMappings[source.key]) {
-          // Try to auto-match column by name similarity
-          const filterCol = filterColumnSelect.value.toLowerCase();
-          const match = source.headers.find(h => String(h).toLowerCase() === filterCol);
-          if (match) {
-            filterConfig.sourceMappings[source.key] = match;
-            renderFilterMappings();
+      for (const filterCol of filterHeaders) {
+        const filterData = filterConfig.allFilterData[filterCol];
+        if (!filterData) continue;
+        const filterSet = new Set(filterData.valuesLower);
+        
+        for (const sourceCol of source.headers) {
+          let matches = 0;
+          source.data.forEach(row => {
+            const val = String(row[sourceCol] || '').trim().toLowerCase();
+            if (val && filterSet.has(val)) {
+              matches++;
+            }
+          });
+          
+          if (matches > bestMatchCount) {
+            bestMatchCount = matches;
+            bestMatch = { filterCol, sourceCol, matches };
           }
         }
-      });
+      }
+      
+      return bestMatch;
+    }
+    
+    function updateFilterColumnMapping(sourceKey, filterColumn) {
+      filterConfig.filterColumnMappings[sourceKey] = filterColumn;
+      
+      // Update match count with new filter column
+      const safeKey = sourceKey.replace(/[^a-zA-Z0-9]/g, '_');
+      const countEl = document.getElementById(`matchCount-${safeKey}`);
+      const sourceCol = filterConfig.sourceMappings[sourceKey];
+      
+      if (countEl && sourceCol) {
+        const [fileIdx, ...rest] = sourceKey.split('-');
+        const sheetName = rest.join('-');
+        const file = fileData[parseInt(fileIdx)];
+        const sheet = file.sheets.find(s => s.name === sheetName);
+        if (sheet) {
+          countEl.innerHTML = calcMatchCount({ data: sheet.data }, sourceCol, filterColumn);
+        }
+      }
     }
     
     function updateSourceMapping(sourceKey, column) {
@@ -1669,14 +1748,15 @@
       // Find source and update match count
       const safeKey = sourceKey.replace(/[^a-zA-Z0-9]/g, '_');
       const countEl = document.getElementById(`matchCount-${safeKey}`);
+      const filterCol = filterConfig.filterColumnMappings[sourceKey];
       
-      if (countEl && column) {
+      if (countEl && column && filterCol) {
         const [fileIdx, ...rest] = sourceKey.split('-');
         const sheetName = rest.join('-');
         const file = fileData[parseInt(fileIdx)];
         const sheet = file.sheets.find(s => s.name === sheetName);
         if (sheet) {
-          countEl.innerHTML = calcMatchCount({ data: sheet.data }, column);
+          countEl.innerHTML = calcMatchCount({ data: sheet.data }, column, filterCol);
         }
       } else if (countEl) {
         countEl.innerHTML = '-- / --';
@@ -1684,17 +1764,19 @@
       }
     }
     
-    function calcMatchCount(source, column) {
-      if (!filterConfig.valuesLower || filterConfig.valuesLower.length === 0) {
+    function calcMatchCount(source, sourceColumn, filterColumn) {
+      // Get filter values for the specific filter column
+      const filterData = filterConfig.allFilterData[filterColumn];
+      if (!filterData || filterData.valuesLower.length === 0) {
         return '-- / --';
       }
       
-      const filterSet = new Set(filterConfig.valuesLower);
+      const filterSet = new Set(filterData.valuesLower);
       let matches = 0;
       let total = 0;
       
       source.data.forEach(row => {
-        const val = String(row[column] || '').trim().toLowerCase();
+        const val = String(row[sourceColumn] || '').trim().toLowerCase();
         if (val) {
           total++;
           if (filterSet.has(val)) {
@@ -1714,7 +1796,7 @@
     function removeFilterFile() {
       filterFile = null;
       filterFileData = null;
-      filterConfig = { enabled: false, sheet: null, column: null, values: [], valuesLower: [], sourceMappings: {} };
+      filterConfig = { enabled: false, sheet: null, filterHeaders: [], sourceMappings: {}, filterColumnMappings: {}, allFilterData: {} };
       
       filterDropZone.classList.remove('hidden');
       filterFileLoaded.classList.add('hidden');
@@ -1972,7 +2054,7 @@
       maxCompletedStep = 0;
       filterFile = null;
       filterFileData = null;
-      filterConfig = { enabled: false, sheet: null, column: null, values: [], valuesLower: [], sourceMappings: {} };
+      filterConfig = { enabled: false, sheet: null, filterHeaders: [], sourceMappings: {}, filterColumnMappings: {}, allFilterData: {} };
       
       fileItems.innerHTML = '';
       fileList.classList.add('hidden');

@@ -244,14 +244,23 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
         
         # Extract filter config if present
         filter_config = config.get('filterConfig')
-        filter_values = None
+        filter_data = None
         source_mappings = {}
+        filter_column_mappings = {}
         
-        if filter_config and filter_config.get('enabled') and filter_config.get('values'):
-            # Case-insensitive filter values
-            filter_values = set(v.lower().strip() for v in filter_config['values'])
-            # Get source-specific column mappings
+        if filter_config and filter_config.get('enabled'):
+            # Get all filter data (per column)
+            all_filter_data = filter_config.get('allFilterData', {})
+            if all_filter_data:
+                # Convert to sets for efficient lookup
+                filter_data = {}
+                for col, data in all_filter_data.items():
+                    filter_data[col] = set(v.lower().strip() for v in data.get('valuesLower', []))
+            
+            # Get source-specific column mappings (which column in data file to match)
             source_mappings = filter_config.get('sourceMappings', {})
+            # Get filter column mappings (which column in filter file to use per source)
+            filter_column_mappings = filter_config.get('filterColumnMappings', {})
         
         try:
             matrices = self.compute_matrices(
@@ -259,8 +268,9 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                 config['selectedTabs'],
                 config['columnSelections'],
                 config['matrixConfig'],
-                filter_values,
-                source_mappings
+                filter_data,
+                source_mappings,
+                filter_column_mappings
             )
             self.send_json({'matrices': matrices})
         except Exception as e:
@@ -275,15 +285,18 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                 parts.append(val)
         return ' | '.join(parts) if parts else ''
     
-    def compute_matrices(self, file_data, selected_tabs, column_selections, matrix_config, filter_values=None, source_mappings=None):
+    def compute_matrices(self, file_data, selected_tabs, column_selections, matrix_config, filter_data=None, source_mappings=None, filter_column_mappings=None):
         """Compute intersection matrices with multi-column X axis support
         
         Args:
-            filter_values: Optional set of lowercase values to filter rows by
-            source_mappings: Dict mapping source key to column name for filter matching
+            filter_data: Dict mapping filter column name -> set of lowercase values
+            source_mappings: Dict mapping source key to column name in data file for filter matching
+            filter_column_mappings: Dict mapping source key to column name in filter file to use
         """
         if source_mappings is None:
             source_mappings = {}
+        if filter_column_mappings is None:
+            filter_column_mappings = {}
         
         matrices = []
         
@@ -312,8 +325,15 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                     if not x_cols and sel.get('xAxis'):
                         x_cols = [sel.get('xAxis')]
                     
-                    # Get filter column for this source
-                    filter_col = source_mappings.get(key)
+                    # Get filter column for this source (which column in data file to match)
+                    source_filter_col = source_mappings.get(key)
+                    # Get which filter file column to use for this source
+                    filter_file_col = filter_column_mappings.get(key)
+                    
+                    # Get the filter values for this source's filter column
+                    source_filter_values = None
+                    if filter_data and filter_file_col and filter_file_col in filter_data:
+                        source_filter_values = filter_data[filter_file_col]
                     
                     for row in sheet['data']:
                         y_val = str(row.get(y_col, '')).strip()
@@ -322,18 +342,18 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                         if y_val:
                             y_values.add(y_val)
                         if x_val:
-                            # Apply filter if present - using source-specific column
-                            if filter_values is None:
+                            # Apply filter if present - using source-specific columns
+                            if source_filter_values is None:
                                 x_values.add(x_val)
-                            elif filter_col:
-                                # Use the mapped filter column
-                                filter_val = str(row.get(filter_col, '')).strip().lower()
-                                if filter_val in filter_values:
+                            elif source_filter_col:
+                                # Use the mapped source column to get value and match against filter
+                                filter_val = str(row.get(source_filter_col, '')).strip().lower()
+                                if filter_val in source_filter_values:
                                     x_values.add(x_val)
                             else:
                                 # Fallback: check if any filter value is in the row value
                                 x_val_lower = x_val.lower()
-                                if any(fv in x_val_lower for fv in filter_values):
+                                if any(fv in x_val_lower for fv in source_filter_values):
                                     x_values.add(x_val)
                 
                 sorted_y = sorted(y_values)
@@ -393,8 +413,15 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                     if not x_cols and sel.get('xAxis'):
                         x_cols = [sel.get('xAxis')]
                     
-                    # Get filter column for this source
-                    filter_col = source_mappings.get(key)
+                    # Get filter column for this source (which column in data file to match)
+                    source_filter_col = source_mappings.get(key)
+                    # Get which filter file column to use for this source
+                    filter_file_col = filter_column_mappings.get(key)
+                    
+                    # Get the filter values for this source's filter column
+                    source_filter_values = None
+                    if filter_data and filter_file_col and filter_file_col in filter_data:
+                        source_filter_values = filter_data[filter_file_col]
                     
                     y_values = set()
                     x_values = set()
@@ -406,18 +433,18 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                         if y_val:
                             y_values.add(y_val)
                         if x_val:
-                            # Apply filter if present - using source-specific column
-                            if filter_values is None:
+                            # Apply filter if present - using source-specific columns
+                            if source_filter_values is None:
                                 x_values.add(x_val)
-                            elif filter_col:
-                                # Use the mapped filter column
-                                filter_val = str(row.get(filter_col, '')).strip().lower()
-                                if filter_val in filter_values:
+                            elif source_filter_col:
+                                # Use the mapped source column to get value and match against filter
+                                filter_val = str(row.get(source_filter_col, '')).strip().lower()
+                                if filter_val in source_filter_values:
                                     x_values.add(x_val)
                             else:
                                 # Fallback: check if any filter value is in the row value
                                 x_val_lower = x_val.lower()
-                                if any(fv in x_val_lower for fv in filter_values):
+                                if any(fv in x_val_lower for fv in source_filter_values):
                                     x_values.add(x_val)
                     
                     sorted_y = sorted(y_values)
