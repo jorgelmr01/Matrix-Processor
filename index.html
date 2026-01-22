@@ -1278,6 +1278,80 @@
         let successCount = 0;
         let errors = [];
         
+        // Helper function to upload a single file with retries
+        async function uploadFileWithRetry(file, index, maxRetries = 3) {
+          let lastError = null;
+          
+          for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+              const formData = new FormData();
+              formData.append('file', file);
+              
+              if (attempt > 1) {
+                console.log(`🔄 [${index+1}/${files.length}] Retry ${attempt}/${maxRetries} for ${file.name}`);
+                progressDetail.textContent = `${file.name} (intento ${attempt}/${maxRetries})`;
+                await new Promise(resolve => setTimeout(resolve, 500 * attempt)); // Increasing delay
+              }
+              
+              console.log(`→ [${index+1}/${files.length}] Starting upload: ${file.name} (${file.size} bytes)${attempt > 1 ? ` [attempt ${attempt}]` : ''}`);
+              
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => {
+                console.error(`⏱ [${index+1}/${files.length}] Timeout for ${file.name}`);
+                controller.abort();
+              }, 180000); // 3 min per file
+              
+              let res;
+              try {
+                res = await fetch('/api/upload-single', { 
+                  method: 'POST', 
+                  body: formData,
+                  signal: controller.signal
+                });
+              } catch (fetchErr) {
+                clearTimeout(timeoutId);
+                console.error(`⚠ [${index+1}/${files.length}] Fetch error for ${file.name}:`, fetchErr);
+                throw new Error(`Error de red: ${fetchErr.message || 'conexión fallida'}`);
+              }
+              clearTimeout(timeoutId);
+              
+              console.log(`← [${index+1}/${files.length}] Response received: ${res.status} ${res.statusText}`);
+              
+              if (!res.ok) {
+                const text = await res.text();
+                console.error(`⚠ [${index+1}/${files.length}] Server error response:`, text);
+                let errorMsg;
+                try {
+                  const errData = JSON.parse(text);
+                  errorMsg = errData.error || `Error ${res.status}`;
+                } catch {
+                  errorMsg = `Error ${res.status}: ${text.substring(0, 200)}`;
+                }
+                throw new Error(errorMsg);
+              }
+              
+              const data = await res.json();
+              
+              if (data.error) {
+                throw new Error(data.error);
+              }
+              
+              return data; // Success!
+              
+            } catch (err) {
+              lastError = err;
+              console.error(`✗ [${index+1}/${files.length}] Attempt ${attempt} failed for ${file.name}:`, err.message);
+              
+              // Don't retry on certain errors
+              if (err.message.includes('Error al procesar') || err.message.includes('Error al leer')) {
+                break; // File itself is bad, no point retrying
+              }
+            }
+          }
+          
+          throw lastError; // All retries failed
+        }
+        
         // Upload files one at a time for reliability
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
@@ -1286,51 +1360,22 @@
           loadingText.textContent = `Procesando archivo ${i + 1} de ${files.length}`;
           progressDetail.textContent = file.name;
           
-          const formData = new FormData();
-          formData.append('file', file);
-          
           try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min per file
-            
-            const res = await fetch('/api/upload-single', { 
-              method: 'POST', 
-              body: formData,
-              signal: controller.signal
-            });
-            clearTimeout(timeoutId);
-            
-            if (!res.ok) {
-              const text = await res.text();
-              let errorMsg;
-              try {
-                const errData = JSON.parse(text);
-                errorMsg = errData.error || `Error ${res.status}`;
-              } catch {
-                errorMsg = `Error ${res.status}: ${text.substring(0, 100)}`;
-              }
-              throw new Error(errorMsg);
-            }
-            
-            const data = await res.json();
-            
-            if (data.error) {
-              throw new Error(data.error);
-            }
-            
+            const data = await uploadFileWithRetry(file, i);
             fileData.push(data.file);
             successCount++;
             console.log(`✓ [${i+1}/${files.length}] Uploaded ${file.name}`);
             
             // Small delay between files to let server breathe
             if (i < files.length - 1) {
-              await new Promise(resolve => setTimeout(resolve, 100));
+              await new Promise(resolve => setTimeout(resolve, 150));
             }
             
           } catch (err) {
-            const errorMsg = `${file.name}: ${err.name === 'AbortError' ? 'Timeout (archivo muy grande o servidor lento)' : err.message}`;
+            const errorMsg = `${file.name}: ${err.name === 'AbortError' ? 'Timeout después de 3 minutos' : err.message}`;
             errors.push(errorMsg);
-            console.error(`✗ [${i+1}/${files.length}] Failed to upload ${file.name}:`, err);
+            console.error(`✗ [${i+1}/${files.length}] FINAL FAILURE for ${file.name} after all retries:`, err);
+            console.error(`  Error type: ${err.name}, Message: ${err.message}`);
           }
         }
         
@@ -1338,12 +1383,18 @@
         
         // Check results
         if (successCount === 0) {
-          throw new Error(`No se pudo procesar ningún archivo.\n\nErrores:\n${errors.join('\n')}`);
+          const errorDetail = errors.length > 0 ? `\n\nErrores:\n${errors.join('\n')}` : '';
+          throw new Error(`No se pudo procesar ningún archivo.${errorDetail}\n\nRevisa la consola del navegador (F12) para más detalles.`);
         }
         
         if (errors.length > 0) {
-          console.warn(`Warnings: ${errors.length} files failed:`, errors);
-          alert(`Se procesaron ${successCount} de ${files.length} archivos.\n\nErrores:\n${errors.join('\n')}`);
+          console.warn(`=== RESUMEN DE ERRORES ===`);
+          console.warn(`${errors.length} archivo(s) fallaron:`);
+          errors.forEach((e, i) => console.warn(`  ${i+1}. ${e}`));
+          console.warn(`==========================`);
+          alert(`Se procesaron ${successCount} de ${files.length} archivos.\n\nArchivos con error (${errors.length}):\n${errors.join('\n')}\n\nRevisa la consola del navegador (F12) para más detalles.`);
+        } else {
+          console.log(`=== ÉXITO: Todos los ${successCount} archivos procesados correctamente ===`);
         }
         
         // Auto-select first sheet for each file
