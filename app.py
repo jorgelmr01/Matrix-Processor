@@ -9,10 +9,22 @@ import sys
 import json
 import webbrowser
 import threading
+import traceback
+import logging
 from datetime import datetime
 from io import BytesIO
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 import urllib.parse
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # Check for required packages and install if missing
 def check_dependencies():
@@ -98,35 +110,55 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
             super().do_GET()
     
     def do_POST(self):
-        content_length = int(self.headers.get('Content-Length', 0))
-        
-        if self.path == '/api/upload':
-            self.handle_upload(content_length)
-        elif self.path == '/api/upload-filter':
-            self.handle_upload_filter(content_length)
-        elif self.path == '/api/process':
-            self.handle_process(content_length)
-        elif self.path == '/api/compute':
-            self.handle_compute(content_length)
-        elif self.path == '/api/export':
-            self.handle_export(content_length)
-        elif self.path == '/api/reset':
-            app_state['files'] = {}
-            app_state['file_data'] = []
-            app_state['filter_file'] = None
-            self.send_json({'status': 'ok'})
-        else:
-            self.send_json({'error': 'No encontrado'}, 404)
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            logger.info(f"POST {self.path} - Content-Length: {content_length}")
+            
+            if self.path == '/api/upload':
+                self.handle_upload(content_length)
+            elif self.path == '/api/upload-single':
+                self.handle_upload_single(content_length)
+            elif self.path == '/api/upload-filter':
+                self.handle_upload_filter(content_length)
+            elif self.path == '/api/process':
+                self.handle_process(content_length)
+            elif self.path == '/api/compute':
+                self.handle_compute(content_length)
+            elif self.path == '/api/export':
+                self.handle_export(content_length)
+            elif self.path == '/api/reset':
+                app_state['files'] = {}
+                app_state['file_data'] = []
+                app_state['filter_file'] = None
+                logger.info("App state reset")
+                self.send_json({'status': 'ok'})
+            elif self.path == '/api/clear-files':
+                app_state['files'] = {}
+                app_state['file_data'] = []
+                logger.info("Files cleared for new batch upload")
+                self.send_json({'status': 'ok'})
+            else:
+                self.send_json({'error': 'No encontrado'}, 404)
+        except Exception as e:
+            logger.error(f"Error in POST {self.path}: {str(e)}")
+            logger.error(traceback.format_exc())
+            try:
+                self.send_json({'error': f'Error del servidor: {str(e)}'}, 500)
+            except:
+                pass
     
-    def handle_upload(self, content_length):
-        """Handle file upload"""
+    def handle_upload_single(self, content_length):
+        """Handle single file upload - more reliable for many files"""
         content_type = self.headers.get('Content-Type', '')
         
-        if 'multipart/form-data' in content_type:
-            # Parse multipart form data
+        if 'multipart/form-data' not in content_type:
+            self.send_json({'error': 'Tipo de contenido inválido'}, 400)
+            return
+        
+        try:
             boundary = content_type.split('boundary=')[1].encode()
             
-            # Read body in chunks to handle large uploads
+            # Read body in chunks
             body = b''
             remaining = content_length
             chunk_size = 1024 * 1024  # 1MB chunks
@@ -139,7 +171,6 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                 remaining -= len(chunk)
             
             parts = body.split(b'--' + boundary)
-            files_processed = []
             
             for part in parts:
                 if b'filename="' in part:
@@ -156,29 +187,107 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                         file_content = file_content[:-2]
                     
                     if filename and file_content:
-                        app_state['files'][filename] = file_content
-                        files_processed.append(filename)
+                        logger.info(f"Processing single file: {filename} ({len(file_content)} bytes)")
+                        
+                        try:
+                            file_info = self.process_file(filename, file_content)
+                            app_state['files'][filename] = file_content
+                            app_state['file_data'].append(file_info)
+                            
+                            logger.info(f"Successfully processed: {filename}")
+                            self.send_json({
+                                'status': 'ok', 
+                                'file': file_info,
+                                'totalFiles': len(app_state['file_data'])
+                            })
+                            return
+                        except Exception as e:
+                            error_msg = f'Error al procesar {filename}: {str(e)}'
+                            logger.error(error_msg)
+                            logger.error(traceback.format_exc())
+                            self.send_json({'error': error_msg, 'filename': filename}, 400)
+                            return
             
-            # Process all uploaded files
-            app_state['file_data'] = []
-            errors = []
-            for filename, content in app_state['files'].items():
-                try:
-                    file_info = self.process_file(filename, content)
-                    app_state['file_data'].append(file_info)
-                except Exception as e:
-                    errors.append(f'{filename}: {str(e)}')
-                    print(f"Error processing {filename}: {e}")
+            self.send_json({'error': 'No se encontró archivo en la solicitud'}, 400)
             
-            if errors and not app_state['file_data']:
-                # All files failed
-                self.send_json({'error': f'Error al procesar archivos:\n' + '\n'.join(errors)}, 400)
-                return
-            elif errors:
-                # Some files failed but some succeeded
-                print(f"Warnings: {len(errors)} files had errors")
-            
-            self.send_json({'status': 'ok', 'files': app_state['file_data']})
+        except Exception as e:
+            logger.error(f"Error in handle_upload_single: {str(e)}")
+            logger.error(traceback.format_exc())
+            self.send_json({'error': f'Error del servidor: {str(e)}'}, 500)
+    
+    def handle_upload(self, content_length):
+        """Handle file upload (legacy - for small batches)"""
+        content_type = self.headers.get('Content-Type', '')
+        
+        if 'multipart/form-data' in content_type:
+            try:
+                # Parse multipart form data
+                boundary = content_type.split('boundary=')[1].encode()
+                
+                # Read body in chunks to handle large uploads
+                body = b''
+                remaining = content_length
+                chunk_size = 1024 * 1024  # 1MB chunks
+                while remaining > 0:
+                    to_read = min(chunk_size, remaining)
+                    chunk = self.rfile.read(to_read)
+                    if not chunk:
+                        break
+                    body += chunk
+                    remaining -= len(chunk)
+                
+                logger.info(f"Received upload request: {content_length} bytes")
+                
+                parts = body.split(b'--' + boundary)
+                files_processed = []
+                
+                for part in parts:
+                    if b'filename="' in part:
+                        # Extract filename
+                        header_end = part.find(b'\r\n\r\n')
+                        header = part[:header_end].decode('utf-8', errors='ignore')
+                        filename_start = header.find('filename="') + 10
+                        filename_end = header.find('"', filename_start)
+                        filename = header[filename_start:filename_end]
+                        
+                        # Extract file content
+                        file_content = part[header_end + 4:]
+                        if file_content.endswith(b'\r\n'):
+                            file_content = file_content[:-2]
+                        
+                        if filename and file_content:
+                            app_state['files'][filename] = file_content
+                            files_processed.append(filename)
+                            logger.info(f"Received file: {filename} ({len(file_content)} bytes)")
+                
+                # Process all uploaded files
+                app_state['file_data'] = []
+                errors = []
+                for filename, content in app_state['files'].items():
+                    try:
+                        logger.info(f"Processing: {filename}")
+                        file_info = self.process_file(filename, content)
+                        app_state['file_data'].append(file_info)
+                        logger.info(f"Successfully processed: {filename}")
+                    except Exception as e:
+                        error_msg = f'{filename}: {str(e)}'
+                        errors.append(error_msg)
+                        logger.error(f"Error processing {filename}: {e}")
+                        logger.error(traceback.format_exc())
+                
+                if errors and not app_state['file_data']:
+                    # All files failed
+                    self.send_json({'error': f'Error al procesar archivos:\n' + '\n'.join(errors)}, 400)
+                    return
+                elif errors:
+                    # Some files failed but some succeeded
+                    logger.warning(f"Warnings: {len(errors)} files had errors: {errors}")
+                
+                self.send_json({'status': 'ok', 'files': app_state['file_data']})
+            except Exception as e:
+                logger.error(f"Error in handle_upload: {str(e)}")
+                logger.error(traceback.format_exc())
+                self.send_json({'error': f'Error del servidor: {str(e)}'}, 500)
         else:
             self.send_json({'error': 'Tipo de contenido inválido'}, 400)
     
@@ -186,13 +295,23 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
         """Process an Excel or CSV file"""
         file_info = {
             'fileName': filename,
-            'fileType': 'csv' if filename.endswith('.csv') else 'excel',
+            'fileType': 'csv' if filename.lower().endswith('.csv') else 'excel',
             'sheets': []
         }
         
         try:
-            if filename.endswith('.csv'):
-                df = pd.read_csv(BytesIO(content))
+            if filename.lower().endswith('.csv'):
+                logger.info(f"Reading CSV: {filename}")
+                # Try different encodings
+                for encoding in ['utf-8', 'latin-1', 'cp1252']:
+                    try:
+                        df = pd.read_csv(BytesIO(content), encoding=encoding)
+                        break
+                    except UnicodeDecodeError:
+                        continue
+                else:
+                    df = pd.read_csv(BytesIO(content), encoding='utf-8', errors='ignore')
+                
                 # Trim headers and data
                 df.columns = [str(col).strip() for col in df.columns]
                 headers = df.columns.tolist()
@@ -202,20 +321,35 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                     'headers': headers,
                     'data': data
                 })
+                logger.info(f"CSV processed: {len(headers)} columns, {len(data)} rows")
             else:
+                logger.info(f"Reading Excel: {filename}")
                 xlsx = pd.ExcelFile(BytesIO(content))
+                logger.info(f"Excel has {len(xlsx.sheet_names)} sheets: {xlsx.sheet_names}")
+                
                 for sheet_name in xlsx.sheet_names:
-                    df = pd.read_excel(xlsx, sheet_name=sheet_name)
-                    # Trim headers and data
-                    df.columns = [str(col).strip() for col in df.columns]
-                    headers = df.columns.tolist()
-                    data = df.fillna('').astype(str).apply(lambda x: x.str.strip()).to_dict('records')
-                    file_info['sheets'].append({
-                        'name': sheet_name,
-                        'headers': headers,
-                        'data': data
-                    })
+                    try:
+                        df = pd.read_excel(xlsx, sheet_name=sheet_name)
+                        # Trim headers and data
+                        df.columns = [str(col).strip() for col in df.columns]
+                        headers = df.columns.tolist()
+                        data = df.fillna('').astype(str).apply(lambda x: x.str.strip()).to_dict('records')
+                        file_info['sheets'].append({
+                            'name': sheet_name,
+                            'headers': headers,
+                            'data': data
+                        })
+                        logger.info(f"  Sheet '{sheet_name}': {len(headers)} columns, {len(data)} rows")
+                    except Exception as sheet_err:
+                        logger.warning(f"  Failed to read sheet '{sheet_name}': {sheet_err}")
+                        # Continue with other sheets
+                
+                if not file_info['sheets']:
+                    raise Exception("No se pudo leer ninguna hoja del archivo Excel")
+                    
         except Exception as e:
+            logger.error(f"Error processing file {filename}: {e}")
+            logger.error(traceback.format_exc())
             raise Exception(f'Error al leer archivo: {str(e)}')
         
         return file_info
@@ -224,7 +358,11 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
         """Handle filter file upload"""
         content_type = self.headers.get('Content-Type', '')
         
-        if 'multipart/form-data' in content_type:
+        if 'multipart/form-data' not in content_type:
+            self.send_json({'error': 'Tipo de contenido inválido'}, 400)
+            return
+            
+        try:
             boundary = content_type.split('boundary=')[1].encode()
             
             # Read body in chunks to handle large uploads
@@ -238,6 +376,8 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                     break
                 body += chunk
                 remaining -= len(chunk)
+            
+            logger.info(f"Received filter file upload: {content_length} bytes")
             
             parts = body.split(b'--' + boundary)
             
@@ -254,18 +394,24 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                         file_content = file_content[:-2]
                     
                     if filename and file_content:
+                        logger.info(f"Processing filter file: {filename} ({len(file_content)} bytes)")
                         try:
                             file_info = self.process_file(filename, file_content)
                             app_state['filter_file'] = file_info
+                            logger.info(f"Successfully processed filter file: {filename}")
                             self.send_json({'status': 'ok', 'file': file_info})
                             return
                         except Exception as e:
+                            logger.error(f"Error processing filter file {filename}: {e}")
+                            logger.error(traceback.format_exc())
                             self.send_json({'error': f'Error al procesar archivo de filtro: {str(e)}'}, 400)
                             return
             
             self.send_json({'error': 'No se encontró archivo'}, 400)
-        else:
-            self.send_json({'error': 'Tipo de contenido inválido'}, 400)
+        except Exception as e:
+            logger.error(f"Error in handle_upload_filter: {str(e)}")
+            logger.error(traceback.format_exc())
+            self.send_json({'error': f'Error del servidor: {str(e)}'}, 500)
     
     def handle_process(self, content_length):
         """Return processed file data"""
@@ -273,30 +419,31 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
     
     def handle_compute(self, content_length):
         """Compute matrices based on configuration"""
-        body = self.rfile.read(content_length)
-        config = json.loads(body.decode('utf-8'))
-        
-        # Extract filter config if present
-        filter_config = config.get('filterConfig')
-        filter_data = None
-        source_mappings = {}
-        filter_column_mappings = {}
-        
-        if filter_config and filter_config.get('enabled'):
-            # Get all filter data (per column)
-            all_filter_data = filter_config.get('allFilterData', {})
-            if all_filter_data:
-                # Convert to sets for efficient lookup
-                filter_data = {}
-                for col, data in all_filter_data.items():
-                    filter_data[col] = set(v.lower().strip() for v in data.get('valuesLower', []))
-            
-            # Get source-specific column mappings (which column in data file to match)
-            source_mappings = filter_config.get('sourceMappings', {})
-            # Get filter column mappings (which column in filter file to use per source)
-            filter_column_mappings = filter_config.get('filterColumnMappings', {})
-        
         try:
+            body = self.rfile.read(content_length)
+            config = json.loads(body.decode('utf-8'))
+            logger.info(f"Computing matrices with {len(config.get('matrixConfig', []))} configurations")
+            
+            # Extract filter config if present
+            filter_config = config.get('filterConfig')
+            filter_data = None
+            source_mappings = {}
+            filter_column_mappings = {}
+            
+            if filter_config and filter_config.get('enabled'):
+                # Get all filter data (per column)
+                all_filter_data = filter_config.get('allFilterData', {})
+                if all_filter_data:
+                    # Convert to sets for efficient lookup
+                    filter_data = {}
+                    for col, data in all_filter_data.items():
+                        filter_data[col] = set(v.lower().strip() for v in data.get('valuesLower', []))
+                
+                # Get source-specific column mappings (which column in data file to match)
+                source_mappings = filter_config.get('sourceMappings', {})
+                # Get filter column mappings (which column in filter file to use per source)
+                filter_column_mappings = filter_config.get('filterColumnMappings', {})
+            
             matrices = self.compute_matrices(
                 config['fileData'],
                 config['selectedTabs'],
@@ -306,8 +453,11 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                 source_mappings,
                 filter_column_mappings
             )
+            logger.info(f"Generated {len(matrices)} matrices")
             self.send_json({'matrices': matrices})
         except Exception as e:
+            logger.error(f"Error in handle_compute: {str(e)}")
+            logger.error(traceback.format_exc())
             self.send_json({'error': str(e)}, 400)
     
     def get_row_value(self, row, x_axis_columns):
@@ -508,11 +658,11 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
     
     def handle_export(self, content_length):
         """Export matrices to Excel with Consulta sheet"""
-        body = self.rfile.read(content_length)
-        data = json.loads(body.decode('utf-8'))
-        matrices = data.get('matrices', [])
-        
         try:
+            body = self.rfile.read(content_length)
+            data = json.loads(body.decode('utf-8'))
+            matrices = data.get('matrices', [])
+            logger.info(f"Exporting {len(matrices)} matrices to Excel")
             wb = Workbook()
             wb.remove(wb.active)
             
@@ -762,7 +912,10 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
             filename = f'matrices_{timestamp}.xlsx'
             
             self.send_file_download(output.read(), filename)
+            logger.info(f"Successfully exported: {filename}")
         except Exception as e:
+            logger.error(f"Error in handle_export: {str(e)}")
+            logger.error(traceback.format_exc())
             self.send_json({'error': str(e)}, 500)
 
 
@@ -777,8 +930,10 @@ def run_server(port=8080):
     print(f"\n  Servidor ejecutándose en: http://localhost:{port}")
     print(f"\n  Abriendo navegador...")
     print(f"\n  Mantén esta ventana abierta mientras usas la app.")
-    print(f"  Presiona Ctrl+C para detener.\n")
+    print(f"  Presiona Ctrl+C para detener.")
+    print(f"\n  Los logs se muestran abajo para diagnóstico.\n")
     print(f"{'='*50}\n")
+    logger.info("Server started successfully")
     
     # Open browser after a short delay
     threading.Timer(1.0, lambda: webbrowser.open(f'http://localhost:{port}')).start()

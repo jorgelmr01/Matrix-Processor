@@ -927,6 +927,29 @@
     
     .loading p { margin-top: 16px; color: var(--text-secondary); font-weight: 500; }
     
+    .progress-bar-container {
+      width: 300px;
+      height: 8px;
+      background: var(--border);
+      border-radius: 4px;
+      margin-top: 16px;
+      overflow: hidden;
+    }
+    
+    .progress-bar {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 4px;
+      transition: width 0.3s ease;
+      width: 0%;
+    }
+    
+    .progress-detail {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 8px !important;
+    }
+    
     .hidden { display: none !important; }
     
     /* Empty state */
@@ -1128,6 +1151,10 @@
   <div class="loading hidden" id="loading">
     <div class="spinner"></div>
     <p>Procesando...</p>
+    <div class="progress-bar-container hidden" id="progressContainer">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+    <p class="progress-detail" id="progressDetail"></p>
   </div>
   
   <script>
@@ -1229,56 +1256,116 @@
       `).join('');
     }
     
-    // Upload files to server
+    // Upload files to server - sequential upload for reliability
     uploadBtn.addEventListener('click', async () => {
       loading.classList.remove('hidden');
-      document.querySelector('#loading p').textContent = `Procesando ${files.length} archivo(s)...`;
+      const loadingText = document.querySelector('#loading p');
+      const progressContainer = document.getElementById('progressContainer');
+      const progressBar = document.getElementById('progressBar');
+      const progressDetail = document.getElementById('progressDetail');
       
-      const formData = new FormData();
-      files.forEach(f => formData.append('files', f));
-      
-      // Create AbortController with 5 minute timeout for large uploads
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000); // 5 minutes
+      // Show progress bar
+      progressContainer.classList.remove('hidden');
+      progressBar.style.width = '0%';
+      progressDetail.textContent = '';
       
       try {
-        const res = await fetch('/api/upload', { 
-          method: 'POST', 
-          body: formData,
-          signal: controller.signal
-        });
-        clearTimeout(timeoutId);
+        // Clear previous files on server
+        loadingText.textContent = 'Preparando...';
+        await fetch('/api/clear-files', { method: 'POST' });
         
-        if (!res.ok) {
-          throw new Error(`Error del servidor: ${res.status} ${res.statusText}`);
+        fileData = [];
+        let successCount = 0;
+        let errors = [];
+        
+        // Upload files one at a time for reliability
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          const progress = Math.round(((i) / files.length) * 100);
+          progressBar.style.width = `${progress}%`;
+          loadingText.textContent = `Procesando archivo ${i + 1} de ${files.length}`;
+          progressDetail.textContent = file.name;
+          
+          const formData = new FormData();
+          formData.append('file', file);
+          
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min per file
+            
+            const res = await fetch('/api/upload-single', { 
+              method: 'POST', 
+              body: formData,
+              signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            
+            if (!res.ok) {
+              const text = await res.text();
+              let errorMsg;
+              try {
+                const errData = JSON.parse(text);
+                errorMsg = errData.error || `Error ${res.status}`;
+              } catch {
+                errorMsg = `Error ${res.status}: ${text.substring(0, 100)}`;
+              }
+              throw new Error(errorMsg);
+            }
+            
+            const data = await res.json();
+            
+            if (data.error) {
+              throw new Error(data.error);
+            }
+            
+            fileData.push(data.file);
+            successCount++;
+            console.log(`✓ [${i+1}/${files.length}] Uploaded ${file.name}`);
+            
+            // Small delay between files to let server breathe
+            if (i < files.length - 1) {
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            
+          } catch (err) {
+            const errorMsg = `${file.name}: ${err.name === 'AbortError' ? 'Timeout (archivo muy grande o servidor lento)' : err.message}`;
+            errors.push(errorMsg);
+            console.error(`✗ [${i+1}/${files.length}] Failed to upload ${file.name}:`, err);
+          }
         }
         
-        const data = await res.json();
+        progressBar.style.width = '100%';
         
-        if (data.error) throw new Error(data.error);
+        // Check results
+        if (successCount === 0) {
+          throw new Error(`No se pudo procesar ningún archivo.\n\nErrores:\n${errors.join('\n')}`);
+        }
         
-        fileData = data.files;
+        if (errors.length > 0) {
+          console.warn(`Warnings: ${errors.length} files failed:`, errors);
+          alert(`Se procesaron ${successCount} de ${files.length} archivos.\n\nErrores:\n${errors.join('\n')}`);
+        }
         
-        // Auto-select first sheet for each file (especially useful for CSVs)
+        // Auto-select first sheet for each file
         fileData.forEach((file, fileIdx) => {
-          if (file.sheets.length > 0) {
+          if (file.sheets && file.sheets.length > 0) {
             const key = `${fileIdx}-${file.sheets[0].name}`;
             selectedTabs[key] = true;
           }
         });
         
+        console.log(`Successfully loaded ${fileData.length} files`);
         goToStep(2);
         renderTabs();
+        
       } catch (err) {
-        clearTimeout(timeoutId);
-        if (err.name === 'AbortError') {
-          alert('Error: La carga tardó demasiado tiempo. Intenta con menos archivos o archivos más pequeños.');
-        } else {
-          alert('Error: ' + err.message + '\n\nSi tienes muchos archivos, intenta cargarlos en lotes más pequeños.');
-        }
+        console.error('Upload error:', err);
+        alert('Error: ' + err.message);
       } finally {
         loading.classList.add('hidden');
-        document.querySelector('#loading p').textContent = 'Procesando...';
+        progressContainer.classList.add('hidden');
+        loadingText.textContent = 'Procesando...';
+        progressDetail.textContent = '';
       }
     });
     
