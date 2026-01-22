@@ -1232,12 +1232,27 @@
     // Upload files to server
     uploadBtn.addEventListener('click', async () => {
       loading.classList.remove('hidden');
+      document.querySelector('#loading p').textContent = `Procesando ${files.length} archivo(s)...`;
       
       const formData = new FormData();
       files.forEach(f => formData.append('files', f));
       
+      // Create AbortController with 5 minute timeout for large uploads
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000); // 5 minutes
+      
       try {
-        const res = await fetch('/api/upload', { method: 'POST', body: formData });
+        const res = await fetch('/api/upload', { 
+          method: 'POST', 
+          body: formData,
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        
+        if (!res.ok) {
+          throw new Error(`Error del servidor: ${res.status} ${res.statusText}`);
+        }
+        
         const data = await res.json();
         
         if (data.error) throw new Error(data.error);
@@ -1255,9 +1270,15 @@
         goToStep(2);
         renderTabs();
       } catch (err) {
-        alert('Error: ' + err.message);
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') {
+          alert('Error: La carga tardó demasiado tiempo. Intenta con menos archivos o archivos más pequeños.');
+        } else {
+          alert('Error: ' + err.message + '\n\nSi tienes muchos archivos, intenta cargarlos en lotes más pequeños.');
+        }
       } finally {
         loading.classList.add('hidden');
+        document.querySelector('#loading p').textContent = 'Procesando...';
       }
     });
     
@@ -1523,8 +1544,22 @@
       const formData = new FormData();
       formData.append('files', file);
       
+      // Create AbortController with 2 minute timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2 * 60 * 1000);
+      
       try {
-        const res = await fetch('/api/upload-filter', { method: 'POST', body: formData });
+        const res = await fetch('/api/upload-filter', { 
+          method: 'POST', 
+          body: formData,
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        
+        if (!res.ok) {
+          throw new Error(`Error del servidor: ${res.status}`);
+        }
+        
         const data = await res.json();
         
         if (data.error) throw new Error(data.error);
@@ -1545,7 +1580,12 @@
         
         updateFilterColumns();
       } catch (err) {
-        alert('Error al cargar archivo de filtro: ' + err.message);
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') {
+          alert('Error: La carga del archivo de filtro tardó demasiado tiempo.');
+        } else {
+          alert('Error al cargar archivo de filtro: ' + err.message);
+        }
         filterFile = null;
         filterFileData = null;
       } finally {

@@ -47,6 +47,9 @@ app_state = {
 }
 
 class MatrixProcessorHandler(SimpleHTTPRequestHandler):
+    # Increase timeout for large file uploads
+    timeout = 300  # 5 minutes timeout
+    
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=os.path.dirname(os.path.abspath(__file__)), **kwargs)
     
@@ -122,7 +125,18 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
         if 'multipart/form-data' in content_type:
             # Parse multipart form data
             boundary = content_type.split('boundary=')[1].encode()
-            body = self.rfile.read(content_length)
+            
+            # Read body in chunks to handle large uploads
+            body = b''
+            remaining = content_length
+            chunk_size = 1024 * 1024  # 1MB chunks
+            while remaining > 0:
+                to_read = min(chunk_size, remaining)
+                chunk = self.rfile.read(to_read)
+                if not chunk:
+                    break
+                body += chunk
+                remaining -= len(chunk)
             
             parts = body.split(b'--' + boundary)
             files_processed = []
@@ -147,13 +161,22 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
             
             # Process all uploaded files
             app_state['file_data'] = []
+            errors = []
             for filename, content in app_state['files'].items():
                 try:
                     file_info = self.process_file(filename, content)
                     app_state['file_data'].append(file_info)
                 except Exception as e:
-                    self.send_json({'error': f'Error al procesar {filename}: {str(e)}'}, 400)
-                    return
+                    errors.append(f'{filename}: {str(e)}')
+                    print(f"Error processing {filename}: {e}")
+            
+            if errors and not app_state['file_data']:
+                # All files failed
+                self.send_json({'error': f'Error al procesar archivos:\n' + '\n'.join(errors)}, 400)
+                return
+            elif errors:
+                # Some files failed but some succeeded
+                print(f"Warnings: {len(errors)} files had errors")
             
             self.send_json({'status': 'ok', 'files': app_state['file_data']})
         else:
@@ -203,7 +226,18 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
         
         if 'multipart/form-data' in content_type:
             boundary = content_type.split('boundary=')[1].encode()
-            body = self.rfile.read(content_length)
+            
+            # Read body in chunks to handle large uploads
+            body = b''
+            remaining = content_length
+            chunk_size = 1024 * 1024  # 1MB chunks
+            while remaining > 0:
+                to_read = min(chunk_size, remaining)
+                chunk = self.rfile.read(to_read)
+                if not chunk:
+                    break
+                body += chunk
+                remaining -= len(chunk)
             
             parts = body.split(b'--' + boundary)
             
@@ -734,7 +768,9 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
 
 def run_server(port=8080):
     """Start the web server"""
+    # Create server with larger request limits
     server = HTTPServer(('127.0.0.1', port), MatrixProcessorHandler)
+    server.request_queue_size = 10  # Allow more pending connections
     print(f"\n{'='*50}")
     print(f"  PROCESADOR DE MATRICES")
     print(f"{'='*50}")
