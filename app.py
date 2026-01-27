@@ -46,6 +46,7 @@ def check_dependencies():
 check_dependencies()
 
 import pandas as pd
+import re
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 from openpyxl.utils import get_column_letter
@@ -469,6 +470,71 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                 parts.append(val)
         return ' | '.join(parts) if parts else ''
     
+    def extract_c_id(self, value):
+        """Extract the unique ID (C followed by 4-8 digits) from a string.
+        Returns the ID if found, None otherwise."""
+        # Pattern: C followed by 4 to 8 digits
+        match = re.search(r'\bC(\d{4,8})\b', value, re.IGNORECASE)
+        if match:
+            # Return normalized form: uppercase C + digits
+            return 'C' + match.group(1)
+        return None
+    
+    def homologate_x_values(self, x_values):
+        """Homologate X values by their C ID.
+        
+        Groups all values by their C ID and keeps only the version with the 
+        most characters for each ID. This handles variations in names like:
+        - "JOHN SMITH | C123456" vs "J. Smith | C123456"
+        - "María García | C234567" vs "MARIA GARCIA | C234567"
+        
+        Args:
+            x_values: Set of X axis values
+            
+        Returns:
+            tuple: (homologated_set, mapping_dict)
+                - homologated_set: Set with only canonical values
+                - mapping_dict: Dict mapping original values to canonical values
+        """
+        # Group values by their C ID
+        id_to_values = {}  # c_id -> list of values with that ID
+        values_without_id = set()  # values that don't have a C ID
+        
+        for val in x_values:
+            c_id = self.extract_c_id(val)
+            if c_id:
+                if c_id not in id_to_values:
+                    id_to_values[c_id] = []
+                id_to_values[c_id].append(val)
+            else:
+                values_without_id.add(val)
+        
+        # For each C ID, pick the value with the most characters
+        canonical_values = set()
+        value_mapping = {}  # maps any variation to its canonical form
+        
+        for c_id, values in id_to_values.items():
+            # Sort by length (descending) to get the longest first
+            values_sorted = sorted(values, key=len, reverse=True)
+            canonical = values_sorted[0]
+            canonical_values.add(canonical)
+            
+            # Map all variations to the canonical form
+            for val in values:
+                value_mapping[val] = canonical
+        
+        # Values without ID map to themselves
+        for val in values_without_id:
+            canonical_values.add(val)
+            value_mapping[val] = val
+        
+        logger.info(f"Homologation: {len(x_values)} values -> {len(canonical_values)} unique (by C ID)")
+        if len(x_values) != len(canonical_values):
+            duplicates_merged = len(x_values) - len(canonical_values)
+            logger.info(f"  Merged {duplicates_merged} duplicate entries with same C ID")
+        
+        return canonical_values, value_mapping
+    
     def compute_matrices(self, file_data, selected_tabs, column_selections, matrix_config, filter_data=None, source_mappings=None, filter_column_mappings=None):
         """Compute intersection matrices with multi-column X axis support
         
@@ -540,8 +606,11 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                                 if any(fv in x_val_lower for fv in source_filter_values):
                                     x_values.add(x_val)
                 
+                # Homologate X values by C ID to merge duplicates with same ID
+                homologated_x, x_value_mapping = self.homologate_x_values(x_values)
+                
                 sorted_y = sorted(y_values)
-                sorted_x = sorted(x_values)
+                sorted_x = sorted(homologated_x)
                 
                 matrix_data = [[0] * len(sorted_y) for _ in range(len(sorted_x))]
                 
@@ -567,9 +636,11 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                         x_val = self.get_row_value(row, x_cols)
                         
                         if y_val and x_val:
-                            if y_val in sorted_y and x_val in sorted_x:
+                            # Map to canonical form using homologation
+                            canonical_x = x_value_mapping.get(x_val, x_val)
+                            if y_val in sorted_y and canonical_x in sorted_x:
                                 y_idx = sorted_y.index(y_val)
-                                x_idx = sorted_x.index(x_val)
+                                x_idx = sorted_x.index(canonical_x)
                                 matrix_data[x_idx][y_idx] = 1
                 
                 matrices.append({
@@ -631,8 +702,11 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                                 if any(fv in x_val_lower for fv in source_filter_values):
                                     x_values.add(x_val)
                     
+                    # Homologate X values by C ID to merge duplicates with same ID
+                    homologated_x, x_value_mapping = self.homologate_x_values(x_values)
+                    
                     sorted_y = sorted(y_values)
-                    sorted_x = sorted(x_values)
+                    sorted_x = sorted(homologated_x)
                     
                     # matrix_data[x_idx][y_idx] - X is rows, Y is columns
                     matrix_data = [[0] * len(sorted_y) for _ in range(len(sorted_x))]
@@ -642,9 +716,11 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                         x_val = self.get_row_value(row, x_cols)
                         
                         if y_val and x_val:
-                            if y_val in sorted_y and x_val in sorted_x:
+                            # Map to canonical form using homologation
+                            canonical_x = x_value_mapping.get(x_val, x_val)
+                            if y_val in sorted_y and canonical_x in sorted_x:
                                 y_idx = sorted_y.index(y_val)
-                                x_idx = sorted_x.index(x_val)
+                                x_idx = sorted_x.index(canonical_x)
                                 matrix_data[x_idx][y_idx] = 1
                     
                     matrices.append({
