@@ -454,6 +454,8 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                 source_mappings,
                 filter_column_mappings
             )
+            # Homologate across all matrices so Consulta shows one name per person (C ID)
+            matrices = self.homologate_matrices_across(matrices)
             logger.info(f"Generated {len(matrices)} matrices")
             self.send_json({'matrices': matrices})
         except Exception as e:
@@ -534,6 +536,77 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
             logger.info(f"  Merged {duplicates_merged} duplicate entries with same C ID")
         
         return canonical_values, value_mapping
+    
+    def homologate_matrices_across(self, matrices):
+        """Homologate row labels (X axis) across ALL matrices so each C ID has one canonical name.
+        
+        This ensures the Consulta sheet shows one entry per person: when you look up
+        "Jorge Martinez | C123456" you see all roles from every matrix, not separate
+        entries for "JORGE MARTINEZ | C123456", "J. Martinez | C123456", etc.
+        
+        - Collects all x axis values from all matrices
+        - Picks one canonical name per C ID (longest version)
+        - In each matrix: replaces row labels with canonical names and merges rows
+          that map to the same canonical (OR of the 1s)
+        """
+        if not matrices:
+            return matrices
+        
+        # Collect all row labels from all matrices
+        all_x_values = set()
+        for m in matrices:
+            for label in m.get('xAxis', []):
+                all_x_values.add(label)
+        
+        if not all_x_values:
+            return matrices
+        
+        # Global homologation: one canonical name per C ID
+        _, value_mapping = self.homologate_x_values(all_x_values)
+        
+        logger.info("Applying cross-matrix homologation so Consulta shows one name per person")
+        
+        result = []
+        for matrix in matrices:
+            x_axis = matrix.get('xAxis', [])
+            data = matrix.get('data', [])
+            y_len = len(matrix.get('yAxis', []))
+            
+            if not x_axis or not data:
+                result.append(matrix)
+                continue
+            
+            # Group row indices by their canonical label
+            canonical_to_row_indices = {}  # canonical_label -> list of row indices
+            for row_idx, label in enumerate(x_axis):
+                if row_idx >= len(data):
+                    continue
+                canonical = value_mapping.get(label, label)
+                if canonical not in canonical_to_row_indices:
+                    canonical_to_row_indices[canonical] = []
+                canonical_to_row_indices[canonical].append(row_idx)
+            
+            # Build new xAxis (sorted unique canonical names) and merge rows
+            new_x_axis = sorted(canonical_to_row_indices.keys())
+            new_data = []
+            for canonical in new_x_axis:
+                indices = canonical_to_row_indices[canonical]
+                merged_row = [0] * y_len
+                for row_idx in indices:
+                    if row_idx < len(data):
+                        for col_idx, val in enumerate(data[row_idx]):
+                            if col_idx < y_len and val == 1:
+                                merged_row[col_idx] = 1
+                new_data.append(merged_row)
+            
+            result.append({
+                'name': matrix['name'],
+                'yAxis': matrix['yAxis'],
+                'xAxis': new_x_axis,
+                'data': new_data
+            })
+        
+        return result
     
     def compute_matrices(self, file_data, selected_tabs, column_selections, matrix_config, filter_data=None, source_mappings=None, filter_column_mappings=None):
         """Compute intersection matrices with multi-column X axis support
