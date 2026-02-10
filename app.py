@@ -292,6 +292,120 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
         else:
             self.send_json({'error': 'Tipo de contenido inválido'}, 400)
     
+    def detect_and_clean_sheet(self, df_raw, label=''):
+        """Detect the header row in a raw DataFrame and return clean (headers, data).
+        
+        Handles tables that don't start at A1:
+        - Drops fully empty columns and rows before data
+        - Finds the header row (first row with good density of text cells)
+        - Returns only columns that have a real header value
+        - Deduplicates header names
+        """
+        if df_raw.empty:
+            return [], []
+        
+        # Drop fully empty columns
+        df_raw = df_raw.dropna(axis=1, how='all')
+        if df_raw.empty:
+            return [], []
+        
+        # Also drop columns where every cell is just whitespace
+        non_ws_mask = df_raw.apply(
+            lambda col: col.astype(str).str.strip().replace('', pd.NA).notna().any()
+        )
+        df_raw = df_raw.loc[:, non_ws_mask]
+        if df_raw.empty:
+            return [], []
+        
+        # Helper: check if a value looks like text (not a number/date)
+        def is_text(val):
+            if pd.isna(val):
+                return False
+            s = str(val).strip()
+            if not s:
+                return False
+            # Check if it's a pure number (int or float, with optional commas)
+            try:
+                float(s.replace(',', '').replace(' ', ''))
+                return False
+            except ValueError:
+                pass
+            # Check if pandas auto-generated name like "Unnamed: 0"
+            if s.startswith('Unnamed:'):
+                return False
+            return True
+        
+        # Score each row: text cells count double, non-empty cells count once
+        row_scores = {}
+        row_text_counts = {}
+        for idx in df_raw.index:
+            row = df_raw.loc[idx]
+            non_empty = sum(1 for v in row if pd.notna(v) and str(v).strip())
+            text_cells = sum(1 for v in row if is_text(v))
+            row_scores[idx] = text_cells * 2 + non_empty
+            row_text_counts[idx] = text_cells
+        
+        best_score = max(row_scores.values()) if row_scores else 0
+        if best_score == 0:
+            return [], []
+        
+        # Header: first row whose score >= 60% of max AND has at least 2 text cells
+        threshold = best_score * 0.6
+        header_idx = None
+        for idx in df_raw.index:
+            if row_scores[idx] >= threshold and row_text_counts[idx] >= 2:
+                header_idx = idx
+                break
+        
+        if header_idx is None:
+            # Fallback: row with the best score
+            header_idx = max(row_scores, key=row_scores.get)
+        
+        # Extract headers from the detected row (only columns with real values)
+        header_row = df_raw.loc[header_idx]
+        headers = []
+        valid_cols = []
+        
+        for col in df_raw.columns:
+            val = header_row[col]
+            if pd.notna(val) and str(val).strip() and not str(val).strip().startswith('Unnamed:'):
+                headers.append(str(val).strip())
+                valid_cols.append(col)
+        
+        if not headers:
+            return [], []
+        
+        # Deduplicate header names
+        seen = {}
+        deduped = []
+        for h in headers:
+            if h in seen:
+                seen[h] += 1
+                deduped.append(f"{h}_{seen[h]}")
+            else:
+                seen[h] = 0
+                deduped.append(h)
+        headers = deduped
+        
+        # Data: everything below the header row, only valid columns
+        df_data = df_raw.loc[df_raw.index > header_idx, valid_cols].copy()
+        df_data.columns = headers
+        
+        # Drop fully empty rows
+        df_data = df_data.dropna(how='all')
+        df_data = df_data[
+            df_data.apply(lambda row: any(pd.notna(v) and str(v).strip() for v in row), axis=1)
+        ]
+        
+        # Clean values
+        data = df_data.fillna('').astype(str).apply(lambda x: x.str.strip()).to_dict('records')
+        
+        if label:
+            logger.info(f"  {label}: header detected at row {header_idx + 1}, "
+                        f"{len(headers)} columns, {len(data)} data rows")
+        
+        return headers, data
+    
     def process_file(self, filename, content):
         """Process an Excel or CSV file"""
         file_info = {
@@ -303,26 +417,26 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
         try:
             if filename.lower().endswith('.csv'):
                 logger.info(f"Reading CSV: {filename}")
-                # Try different encodings
+                df_raw = None
                 for encoding in ['utf-8', 'latin-1', 'cp1252']:
                     try:
-                        df = pd.read_csv(BytesIO(content), encoding=encoding)
+                        df_raw = pd.read_csv(BytesIO(content), encoding=encoding, header=None)
                         break
                     except UnicodeDecodeError:
                         continue
-                else:
-                    df = pd.read_csv(BytesIO(content), encoding='utf-8', errors='ignore')
+                if df_raw is None:
+                    df_raw = pd.read_csv(BytesIO(content), encoding='utf-8', errors='ignore', header=None)
                 
-                # Trim headers and data
-                df.columns = [str(col).strip() for col in df.columns]
-                headers = df.columns.tolist()
-                data = df.fillna('').astype(str).apply(lambda x: x.str.strip()).to_dict('records')
-                file_info['sheets'].append({
-                    'name': 'Sheet1',
-                    'headers': headers,
-                    'data': data
-                })
-                logger.info(f"CSV processed: {len(headers)} columns, {len(data)} rows")
+                headers, data = self.detect_and_clean_sheet(df_raw, label=filename)
+                if headers:
+                    file_info['sheets'].append({
+                        'name': 'Sheet1',
+                        'headers': headers,
+                        'data': data
+                    })
+                    logger.info(f"CSV processed: {len(headers)} columns, {len(data)} rows")
+                else:
+                    raise Exception("No se encontraron encabezados válidos en el archivo CSV")
             else:
                 logger.info(f"Reading Excel: {filename}")
                 xlsx = pd.ExcelFile(BytesIO(content))
@@ -330,20 +444,20 @@ class MatrixProcessorHandler(SimpleHTTPRequestHandler):
                 
                 for sheet_name in xlsx.sheet_names:
                     try:
-                        df = pd.read_excel(xlsx, sheet_name=sheet_name)
-                        # Trim headers and data
-                        df.columns = [str(col).strip() for col in df.columns]
-                        headers = df.columns.tolist()
-                        data = df.fillna('').astype(str).apply(lambda x: x.str.strip()).to_dict('records')
-                        file_info['sheets'].append({
-                            'name': sheet_name,
-                            'headers': headers,
-                            'data': data
-                        })
-                        logger.info(f"  Sheet '{sheet_name}': {len(headers)} columns, {len(data)} rows")
+                        df_raw = pd.read_excel(xlsx, sheet_name=sheet_name, header=None)
+                        headers, data = self.detect_and_clean_sheet(
+                            df_raw, label=f"'{sheet_name}'"
+                        )
+                        if headers:
+                            file_info['sheets'].append({
+                                'name': sheet_name,
+                                'headers': headers,
+                                'data': data
+                            })
+                        else:
+                            logger.warning(f"  Sheet '{sheet_name}': no valid headers found, skipping")
                     except Exception as sheet_err:
                         logger.warning(f"  Failed to read sheet '{sheet_name}': {sheet_err}")
-                        # Continue with other sheets
                 
                 if not file_info['sheets']:
                     raise Exception("No se pudo leer ninguna hoja del archivo Excel")
